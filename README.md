@@ -13,6 +13,8 @@ Remove unwanted people, objects and distractions from your shots with control ov
 
 Want a guided interface for preparing the inputs? Optional [Paintout Studio](app/README.md) adds a timeline, mask painting and tracking, and precise FLUX 3 Klein clean-frame editing. It is included in the same node pack and uses ComfyUI's queue.
 
+For a first test, follow [Start here: local testing](build/local-start-here.md).
+
 ## Run the Comfy workflow
 
 **This is the recommended way to use Zura Paintout.** [Zura Paintout is now listed in Comfy Registry](https://registry.comfy.org/nodes/zura-paintout). Version 0.1.0 has been submitted and is currently marked Pending. The public Registry search is verified; availability in your Manager may take time to refresh.

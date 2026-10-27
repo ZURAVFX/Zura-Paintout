@@ -1,25 +1,30 @@
 # Zura Paintout
 
-A ComfyUI workflow for artist-guided video cleanup. Remove a subject using a tracked mask and clean-frame references, then deliver the repaired shot at the original plate dimensions and frame rate.
+**Precise video object removal in ComfyUI.**
 
-**The ComfyUI workflow is the main entry.** Paintout Studio, in [`app/`](app/README.md), is an optional full-window interface for preparing masks, editing clean frames and running the same processing graphs. You can use the workflows directly without opening the interface.
+Remove unwanted people, objects and distractions from your shots with control over exactly where the repair happens. Give LTX a removal mask and clean-frame references, guide the reconstruction, and deliver the shot at its original resolution and frame rate.
 
-LTX 2.5 performs the video repair. The optional preparation tools use SAM3.1 for selection and tracking, and FLUX 3 Klein for clean-frame editing. Existing masks and externally painted clean frames work too. Inference runs on your ComfyUI machine; no hosted account or paid API is required by this package.
+**Recommended: use the workflow directly in ComfyUI.** Install the custom node pack, add the required models and dependencies, load the included workflow and queue your repair. Everything runs in your existing ComfyUI installation. No separate application is required.
 
-This develops the existing [Zura Nodes](https://github.com/ZURAVFX/ComfyUI_zura_nodes) paintout foundation. It does not claim authorship of ComfyUI, the models or their adapters. See [what changed](build/CHANGES.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+- **Control the removal.** Use a mask to define the repair area and clean-frame guides to show what belongs behind the subject.
+- **Keep the plate aligned.** Video, masks and guides share the same processing transform; delivery restores the original dimensions, frame rate and selected frame count.
+- **Fit your VFX pipeline.** Use masks and clean frames from your existing tools, export EXR masters and keep the native ComfyUI graph editable.
+- **Work locally.** LTX 2.5 runs on your ComfyUI machine. This package requires no hosted account or paid API.
 
-This is a public testing build for the contest entry. Final demonstration media and artist acceptance are still pending.
+Want a guided interface for preparing the inputs? Optional [Paintout Studio](app/README.md) adds a timeline, mask painting and tracking, and precise FLUX 3 Klein clean-frame editing. It is included in the same node pack and uses ComfyUI's queue.
 
 ## Run the Comfy workflow
 
-Get the source from [ZURAVFX/Zura-Paintout](https://github.com/ZURAVFX/Zura-Paintout), or [download the source ZIP](https://github.com/ZURAVFX/Zura-Paintout/archive/refs/heads/main.zip). Extract it before running the installer. To install manually, copy the extracted folder into `ComfyUI/custom_nodes/Zura-Paintout`.
+**This is the recommended way to use Zura Paintout.** If your LTX setup is already ready, install this pack and load the workflow. On a fresh setup, download the models and install the dependencies below once.
 
-1. Prepare ComfyUI, the required node packs and the LTX model files using [`build/model-files.md`](build/model-files.md). The optional SAM and FLUX models are listed separately.
-2. Install this node pack into ComfyUI's `custom_nodes` directory and install `requirements.txt` with **ComfyUI's own Python**. The Windows helper is `Install.ps1`. If you already have Zura Nodes with Paintout, use that installation instead: do not enable both packs, as they register the same node IDs and routes.
-3. Restart ComfyUI. Open [`workflows/Zura_Paintout_Targeted.json`](workflows/Zura_Paintout_Targeted.json) by dragging it onto the ComfyUI canvas.
-4. In the source node, choose your original plate and a matching black-and-white mask video or image sequence. White marks removal; black keeps the source. Set source colour space, start frame and frame count. The mask must align with the full source plate.
-5. In the clean-frame guides node, replace the example image path with a genuinely clean frame. Set its original, zero-based source frame number and colour space. Add more guide records when the background or overlap changes. These frames can come from your own image editor; the app is optional.
-6. Check the prompt, model filenames, seed and output settings, then queue the graph. Start with a short, continuous shot and a recoverable background. Inspect the saved result in motion and frame by frame.
+1. **Install the custom node pack.** [Download the source ZIP](https://github.com/ZURAVFX/Zura-Paintout/archive/refs/heads/main.zip), extract it into `ComfyUI/custom_nodes/Zura-Paintout`, then install `requirements.txt` with **ComfyUI's own Python**. The Windows helper is `Install.ps1`. You can also clone [this repository](https://github.com/ZURAVFX/Zura-Paintout) directly into that folder.
+2. **Set up the required models once.** Install ComfyUI-LTXVideo, ComfyUI-KJNodes, FFmpeg/ffprobe and the LTX files listed in [`build/model-files.md`](build/model-files.md). For targeted repair, use the Obscura adapter. SAM and FLUX are optional: the main workflow accepts masks and clean frames you have already prepared.
+3. **Restart ComfyUI and load the workflow.** Drag [`Zura_Paintout_Targeted.json`](workflows/Zura_Paintout_Targeted.json) onto the canvas.
+4. **Add the plate and removal mask.** In the source node, enter your original plate and matching black-and-white mask video or image sequence. White marks removal; black keeps the source. Set source colour space, start frame and frame count. The mask must align with the full source plate.
+5. **Add clean-frame guides.** Replace the example image path with a clean frame and set its original, zero-based source frame number and colour space. Add guides where the background or overlap changes. Use your preferred image editor or the optional Studio.
+6. **Queue the repair.** Check the prompt, model filenames, seed and output settings, then queue the graph. Review the saved result in motion and frame by frame.
+
+Already using Paintout through Zura Nodes? Keep that installation and load these workflows there. Do not enable both packs: they register the same node IDs and routes.
 
 The targeted template uses an existing removal mask and prepared clean frames. Interactive mask creation and FLUX editing are preparation tools in the optional app, not hidden stages of this render template.
 
@@ -65,16 +70,18 @@ The development GPU was an RTX 4080 with 16 GB VRAM. Fresh CPU dependency instal
 
 ## Limits
 
+- This is a public testing build for the contest entry. Final demonstration media and artist acceptance are still pending.
 - Use one continuous shot. Heavy occlusion and backgrounds that are never visible may require additional clean guides or a different shot.
 - Tracking can lose the subject. Review the whole mask and repair difficult sections; multiple passes are supported.
 - Never accept a clean guide with remnants of the removed subject or distorted subjects that should remain.
 - Shot length, resolution and guide count affect memory. The current 993-frame validation ceiling is not a promise that every such render fits the GPU.
 - The native file picker targets local Windows ComfyUI. Other operating systems and remote-browser file selection have not been validated.
 - Models may require separate access approval and licence acceptance. No weights, footage or showcase results are bundled.
-- This is a contest preparation build. Demo media and the submission video are still to be supplied by the artist.
 
 ## Licence
 
 Application code is AGPL-3.0-only. See [`LICENSE`](LICENSE) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Models and separately installed node packs retain their own terms.
+
+Zura Paintout develops the existing [Zura Nodes](https://github.com/ZURAVFX/ComfyUI_zura_nodes) paintout foundation. See [what changed](build/CHANGES.md) for the entry's contribution and model attribution.
 
 The repository presentation follows [Comfy OpenJutsu](https://github.com/Comfy-Org/comfy-openjutsu) as a format reference. Its cloud setup and MIT licence do not apply to this project.

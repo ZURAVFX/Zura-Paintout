@@ -1,3 +1,7 @@
+# 0.1.0: standalone Registry testing release
+
+Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
+
 # 1.0.0-rc.1
 
 - Clean-frame Expand mask restores the red overlay on accepted frames, saves guide-only bounds and leaves the shot mask unchanged. Pending generated candidates lock the bounds until accepted or discarded.

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .media_tools import find_media_tool
 import json, math, re, subprocess, hashlib, tempfile, uuid, shutil, time
 from pathlib import Path
 from fractions import Fraction
@@ -54,7 +55,7 @@ def read_image(path):
 @lru_cache(maxsize=64)
 def _decoded_video_count(path, size, modified_ns):
     # Matroska and some camera containers omit nb_frames and stream duration.
-    result=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-count_frames','-show_entries','stream=nb_read_frames','-of','json',path],capture_output=True,check=True,text=True)
+    result=subprocess.run([find_media_tool('ffprobe'),'-v','error','-select_streams','v:0','-count_frames','-show_entries','stream=nb_read_frames','-of','json',path],capture_output=True,check=True,text=True)
     count=int(json.loads(result.stdout)['streams'][0].get('nb_read_frames',0))
     if count<1:raise ValueError('The video contains no decodable frames.')
     return count
@@ -69,7 +70,7 @@ def describe(path):
     if p.suffix.lower() in ('.exr','.png','.tif','.tiff'):
         shape=read_image(p).shape
         return dict(kind='sequence',files=[str(p)],width=shape[1],height=shape[0],count=1)
-    r=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_streams','-of','json',str(p)],capture_output=True,check=True,text=True)
+    r=subprocess.run([find_media_tool('ffprobe'),'-v','error','-select_streams','v:0','-show_streams','-of','json',str(p)],capture_output=True,check=True,text=True)
     s=json.loads(r.stdout)['streams'][0]
     rotations = [s.get('tags', {}).get('rotate', 0)] + [item.get('rotation', 0) for item in s.get('side_data_list', [])]
     if any(abs(float(value) % 360) > .01 for value in rotations):
@@ -117,7 +118,7 @@ def frames(d,start,count):
     # Preserve encoded RGB values at 16-bit precision; colour conversion follows decoding.
     # FFmpeg 7 defaults rawvideo to 25 fps after this filter chain. Keep every
     # decoded source frame, including 59.94 fps footage, rather than drop/duplicate.
-    cmd=['ffmpeg','-v','error','-i',d['path'],'-vf',vf,'-an','-sn','-fps_mode','passthrough','-f','rawvideo','-pix_fmt','rgb48le','-']
+    cmd=[find_media_tool('ffmpeg'),'-v','error','-i',d['path'],'-vf',vf,'-an','-sn','-fps_mode','passthrough','-f','rawvideo','-pix_fmt','rgb48le','-']
     # Windows anonymous pipes throttle large RGB streams. Reuse an uncompressed
     # temporary disk cache instead, while retaining 16-bit decoded RGB precision.
     size=d['width']*d['height']*6*count

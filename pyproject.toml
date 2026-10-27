@@ -1,7 +1,24 @@
 [project]
-name = "comfyui-zura-paintout"
-version = "1.0.0rc1"
-description = "Artist-guided ComfyUI video paintout workflows with an optional local interface"
-license = {text = "AGPL-3.0-only"}
+name = "zura-paintout"
+version = "0.1.0"
+description = "Precise video object removal in ComfyUI, with masks, clean-frame guides and an optional local Studio interface."
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "Pillow",
+    "scipy",
+    "OpenImageIO",
+    "opencv-python-headless",
+]
 
+[project.urls]
+Repository = "https://github.com/ZURAVFX/Zura-Paintout"
+Documentation = "https://github.com/ZURAVFX/Zura-Paintout#run-the-comfy-workflow"
+Issues = "https://github.com/ZURAVFX/Zura-Paintout/issues"
+
+[tool.comfy]
+PublisherId = "zuravfx"
+DisplayName = "Zura Paintout"
+includes = ["app", "paintout", "example_workflows", "workflows", "build"]

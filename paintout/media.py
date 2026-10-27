@@ -1,4 +1,5 @@
 """Small streaming delivery adapter around ComfyUI's installed HDR/video nodes."""
+from .media_tools import find_media_tool
 from pathlib import Path
 import io
 import subprocess
@@ -15,18 +16,18 @@ def correct_video_clock(path,fps):
     # source clock after concatenation, without re-encoding image samples.
     # Packet-count expressions need no prescale option (absent in older FFmpeg).
     expression=f'setts=pts=N*{ticks}/{timescale}/TB:dts=N*{ticks}/{timescale}/TB:duration={ticks}/{timescale}/TB'
-    subprocess.run(['ffmpeg','-v','error','-i',str(path),'-map','0:v:0','-c:v','copy','-bsf:v',expression,'-video_track_timescale',str(timescale),'-y',str(temp)],check=True,capture_output=True)
+    subprocess.run([find_media_tool('ffmpeg'),'-v','error','-i',str(path),'-map','0:v:0','-c:v','copy','-bsf:v',expression,'-video_track_timescale',str(timescale),'-y',str(temp)],check=True,capture_output=True)
     temp.replace(path)
 
 def copy_source_audio(path,plate):
     """Trim original audio to the selected image range; preserve video samples."""
     source=plate.get('source',{})
     if source.get('kind')!='video':return False
-    probe=subprocess.run(['ffprobe','-v','error','-select_streams','a:0','-show_entries','stream=index','-of','csv=p=0',source['path']],check=True,capture_output=True,text=True)
+    probe=subprocess.run([find_media_tool('ffprobe'),'-v','error','-select_streams','a:0','-show_entries','stream=index','-of','csv=p=0',source['path']],check=True,capture_output=True,text=True)
     if not probe.stdout.strip():return False
     temporary=path.with_name(path.stem+'_audio.mp4')
     start=plate['start']/plate['fps'];duration=plate['count']/plate['fps']
-    subprocess.run(['ffmpeg','-v','error','-i',str(path),'-ss',str(start),'-i',source['path'],'-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','aac','-b:a','192k','-af','asetpts=PTS-STARTPTS','-t',str(duration),'-movflags','+faststart','-y',str(temporary)],check=True,capture_output=True)
+    subprocess.run([find_media_tool('ffmpeg'),'-v','error','-i',str(path),'-ss',str(start),'-i',source['path'],'-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','aac','-b:a','192k','-af','asetpts=PTS-STARTPTS','-t',str(duration),'-movflags','+faststart','-y',str(temporary)],check=True,capture_output=True)
     temporary.replace(path)
     return True
 
@@ -79,7 +80,7 @@ class Delivery:
         pixels=(images.detach().cpu().clamp(0,1).numpy()*65535).round().astype('<u2')
         rate=str(self.plate.get('fps_rational',self.plate['fps']))
         colour=['-color_primaries','bt2020','-color_trc','arib-std-b67','-colorspace','bt2020nc'] if hdr else ['-color_primaries','bt709','-color_trc','iec61966-2-1','-colorspace','bt709']
-        command=['ffmpeg','-v','error','-f','rawvideo','-pix_fmt','rgb48le','-s',f'{w}x{h}','-r',rate,'-i','pipe:0','-an','-c:v','libx264','-pix_fmt','yuv444p10le','-preset','ultrafast','-crf','18','-bf','0',*colour,'-f','matroska','pipe:1']
+        command=[find_media_tool('ffmpeg'),'-v','error','-f','rawvideo','-pix_fmt','rgb48le','-s',f'{w}x{h}','-r',rate,'-i','pipe:0','-an','-c:v','libx264','-pix_fmt','yuv444p10le','-preset','ultrafast','-crf','18','-bf','0',*colour,'-f','matroska','pipe:1']
         result=subprocess.run(command,input=pixels.tobytes(),capture_output=True,check=True)
         return InputImpl.VideoFromFile(io.BytesIO(result.stdout))
 

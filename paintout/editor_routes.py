@@ -1,4 +1,5 @@
 """Local full-resolution overlay previews and validated edited-frame imports."""
+from .media_tools import find_media_tool
 import asyncio
 import io
 import secrets
@@ -192,7 +193,7 @@ def save_painted_frame(body):
 def _spool_mask_video(description, directory):
     """Decode in source frame order, retaining only one grayscale frame in memory."""
     width, height, count = description['width'], description['height'], description['count']
-    command = ['ffmpeg', '-v', 'error', '-i', description['path'], '-map', '0:v:0', '-an', '-sn',
+    command = [find_media_tool('ffmpeg'), '-v', 'error', '-i', description['path'], '-map', '0:v:0', '-an', '-sn',
                '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']
     result = {}
     with tempfile.TemporaryFile() as errors:

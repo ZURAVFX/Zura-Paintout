@@ -4,6 +4,7 @@ import ast
 import hashlib
 import json
 import re
+import tomllib
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,12 @@ def main():
     check('WEB_DIRECTORY = "./app"' in (ROOT / '__init__.py').read_text(encoding='utf-8'), 'frontend registration')
     check((ROOT / 'app/assets/fonts/Manrope-OFL.txt').is_file(), 'font licence')
     check((ROOT / 'app/assets/icons/Lucide-LICENSE.txt').is_file(), 'icon licence')
+    metadata = tomllib.loads((ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    check(metadata['project']['name'] == 'zura-paintout', 'Registry node identifier')
+    check(metadata['tool']['comfy']['PublisherId'] == 'zuravfx', 'Registry publisher')
+    check(re.fullmatch(r'\d+\.\d+\.\d+', metadata['project']['version']), 'Registry semantic version')
+    requirements = {line.strip() for line in (ROOT / 'requirements.txt').read_text().splitlines() if line.strip()}
+    check(set(metadata['project']['dependencies']) == requirements, 'automatic installation dependencies')
     for file in ROOT.rglob('*.md'):
         for target in re.findall(r'\[[^\]]*\]\(([^)]+)\)', file.read_text(encoding='utf-8')):
             if re.match(r'[a-zA-Z][a-zA-Z0-9+.-]*:', target) or target.startswith('#'):
@@ -36,6 +43,7 @@ def main():
         workflow = json.loads((ROOT / 'workflows' / name).read_text(encoding='utf-8'))
         check(len(workflow.get('definitions', {}).get('subgraphs', [])) >= minimum, 'native subgraphs: ' + name)
         check(bool(workflow.get('nodes')), 'native nodes: ' + name)
+        check((ROOT / 'example_workflows' / name).read_bytes() == (ROOT / 'workflows' / name).read_bytes(), 'Template Browser copy: ' + name)
     for name, targeted in [('targeted.api.json', True), ('full-scene.api.json', False)]:
         graph = json.loads((ROOT / 'workflows' / name).read_text(encoding='utf-8'))
         for node in graph.values():

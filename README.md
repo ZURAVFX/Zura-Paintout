@@ -4,7 +4,7 @@
 
 Remove unwanted people, objects and distractions from your shots with control over exactly where the repair happens. Give LTX a removal mask and clean-frame references, guide the reconstruction, and deliver the shot at its original resolution and frame rate.
 
-**Recommended: use the workflow directly in ComfyUI.** Install the custom node pack, add the required models and dependencies, load the included workflow and queue your repair. Everything runs in your existing ComfyUI installation. No separate application is required.
+**Recommended: use the workflow directly in ComfyUI.** Install the custom node pack, add the required models, open the included template and queue your repair. Everything runs in your existing ComfyUI installation. No separate application is required.
 
 - **Control the removal.** Use a mask to define the repair area and clean-frame guides to show what belongs behind the subject.
 - **Keep the plate aligned.** Video, masks and guides share the same processing transform; delivery restores the original dimensions, frame rate and selected frame count.
@@ -15,7 +15,18 @@ Want a guided interface for preparing the inputs? Optional [Paintout Studio](app
 
 ## Run the Comfy workflow
 
-**This is the recommended way to use Zura Paintout.** If your LTX setup is already ready, install this pack and load the workflow. On a fresh setup, download the models and install the dependencies below once.
+**This is the recommended way to use Zura Paintout.** Installation is being prepared for ComfyUI's extension manager. Registry submission and availability are separate steps; this README will link the listing once publication is confirmed.
+
+The intended setup uses ComfyUI's interface throughout:
+
+1. Open **Manager / Extensions**, search for **Zura Paintout**, install it and restart when prompted. Manager installs the Python dependencies declared by the pack.
+2. Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through Manager if they are missing. Download the required LTX model files using the links in [`build/model-files.md`](build/model-files.md), then place them in the listed folders using your file browser. Model access approval may be required. If FFmpeg is missing, copy `ffmpeg` and `ffprobe` into `ComfyUI/ffmpeg/bin/`. See [setup without a terminal](build/no-terminal-setup.md).
+3. Open **Workflow → Browse Templates** and choose **Zura Paintout → Zura_Paintout_Targeted**. Both native templates are included in `example_workflows/` for ComfyUI's Template Browser.
+4. Enter the plate, mask and clean-guide paths, check the source range and colour space, then queue the repair.
+
+For the current GitHub build, use Manager's **Install via Git URL** option if your version supports it, with `https://github.com/ZURAVFX/Zura-Paintout`. Do not change Manager's security settings to enable this. The manual fallback below remains available while the listing is pending.
+
+### Manual installation and workflow inputs
 
 1. **Install the custom node pack.** [Download the source ZIP](https://github.com/ZURAVFX/Zura-Paintout/archive/refs/heads/main.zip), extract it into `ComfyUI/custom_nodes/Zura-Paintout`, then install `requirements.txt` with **ComfyUI's own Python**. The Windows helper is `Install.ps1`. You can also clone [this repository](https://github.com/ZURAVFX/Zura-Paintout) directly into that folder.
 2. **Set up the required models once.** Install ComfyUI-LTXVideo, ComfyUI-KJNodes, FFmpeg/ffprobe and the LTX files listed in [`build/model-files.md`](build/model-files.md). For targeted repair, use the Obscura adapter. SAM and FLUX are optional: the main workflow accepts masks and clean frames you have already prepared.
@@ -34,7 +45,7 @@ For a complete scene without moving subjects, open [`workflows/Zura_Paintout_Ful
 
 The editable templates use native ComfyUI subgraphs for model loading, conditioning and sampling. Packaged Zura nodes handle plate reading, guide coordinates, bounded guide attention and delivery. Native LTX nodes perform the model processing.
 
-Matching API graphs are included as [`targeted.api.json`](workflows/targeted.api.json) and [`full-scene.api.json`](workflows/full-scene.api.json). They contain example paths, not ready-to-run media. See [`workflows/README.md`](workflows/README.md) for the inputs and node IDs.
+Matching API graphs are included as [`targeted.api.json`](workflows/targeted.api.json) and [`full-scene.api.json`](workflows/full-scene.api.json). These are local ComfyUI queue graphs for developers, not a hosted API service. They contain example paths, not ready-to-run media. See [`workflows/README.md`](workflows/README.md) for the inputs and node IDs. A separately deployable cloud version is not included in this release.
 
 ### Plate handling
 
@@ -60,7 +71,7 @@ The existing graph builder is `app/paintout_recipes.js`; the interactive control
 
 Use [`build/model-files.md`](build/model-files.md) for node dependencies and model locations. [`build/tested-environment.json`](build/tested-environment.json) records the observed development setup; it is not a minimum hardware specification or a reproducible lockfile.
 
-Run the package's structural checks without loading models:
+Developers can run the package's structural checks with Python 3.11 or newer, without loading models:
 
 ```sh
 python build/verify.py

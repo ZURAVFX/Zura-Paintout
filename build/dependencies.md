@@ -1,6 +1,6 @@
 # Runtime and model dependencies
 
-The package uses ComfyUI's Python, PyTorch, native model loading, queue and memory management. It does not bundle those runtimes or model weights. Install current ComfyUI, LTXVideo and KJNodes. FFmpeg and ffprobe must be available on PATH for video probing/decoding/encoding; EXR support depends on OpenImageIO.
+The package uses ComfyUI's Python, PyTorch, native model loading, queue and memory management. It does not bundle those runtimes or model weights. Install current ComfyUI, LTXVideo and KJNodes. FFmpeg and ffprobe are needed for video probing/decoding/encoding; use an existing PATH installation or copy both executables into `ComfyUI/ffmpeg/bin/` using your file browser. EXR support depends on OpenImageIO.
 
 Model filenames expected by the supplied recipes:
 
@@ -22,7 +22,7 @@ MODEL_DOWNLOADS.md links every required upstream file and target folder. MODEL_S
 
 The targeted adapter is [WepeNerd/Obscura_Remova](https://huggingface.co/WepeNerd/Obscura_Remova). Its model card identifies LTX 2.3 as its base and links the [LTX 2 community licence](https://huggingface.co/Lightricks/LTX-2.3/blob/main/LICENSE). The local file used in testing matches the upstream SHA-256: `e58ff6e1076caf40707b9b890aeae1d1c0bd26f285f7666aafc052a06d35f22a`. Running it with LTX 2.5 is this application's tested combination, not an upstream compatibility claim. Review those model terms for your intended use.
 
-Install transformer weights in `models/diffusion_models/`, text encoders and the Klein upsampler in `models/text_encoders/`, VAEs in `models/vae/`, adapters in `models/loras/`, and SAM in `models/checkpoints/`. Existing extra model paths are supported. FFmpeg **and ffprobe** must be on PATH. OpenCV, OpenImageIO, Pillow and SciPy are direct Python requirements.
+Install transformer weights in `models/diffusion_models/`, text encoders and the Klein upsampler in `models/text_encoders/`, VAEs in `models/vae/`, adapters in `models/loras/`, and SAM in `models/checkpoints/`. Existing extra model paths are supported. FFmpeg **and ffprobe** must be available, either on PATH or under `ComfyUI/ffmpeg/bin/`. OpenCV, OpenImageIO, Pillow and SciPy are direct Python requirements.
 
 The development GPU checks used ComfyUI 0.42.5, frontend 1.55.18, Python 3.13.12 and an RTX 4080 with 16 GB VRAM. These checks establish operation on that machine, not a minimum hardware specification or a fresh-machine installation guarantee. Test shorter shots first. First model loads take longer than warm runs.
 

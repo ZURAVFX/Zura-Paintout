@@ -11,3 +11,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: python build/verify.py
+      - run: python -m unittest discover -s build -p test_media_tools.py

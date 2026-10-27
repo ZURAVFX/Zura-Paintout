@@ -24,6 +24,6 @@ MODEL_SOURCES.json records the observed repository revisions and revision-specif
 
 ## Environment setup
 
-Install [ComfyUI](https://github.com/Comfy-Org/ComfyUI), [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) and [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes). Use ComfyUI's own Python to install this pack's `requirements.txt`. FFmpeg and ffprobe must be on PATH. See [runtime dependencies](dependencies.md), [observed versions](tested-environment.json) and [manual testing](manual-testing.md).
+Install [ComfyUI](https://github.com/Comfy-Org/ComfyUI), [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) and [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes). Use ComfyUI Manager to install the packs and their Python dependencies. FFmpeg and ffprobe can be on PATH or in `ComfyUI/ffmpeg/bin/`. See [setup without a terminal](no-terminal-setup.md), [runtime dependencies](dependencies.md), [observed versions](tested-environment.json) and [manual testing](manual-testing.md).
 
 For the targeted native workflow, install only the LTX transformer, text encoder, two VAEs and Obscura adapter from the table above. The full-scene workflow uses the clean-plate adapter instead. SAM and Klein are optional preparation tools.

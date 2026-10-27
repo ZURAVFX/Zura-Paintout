@@ -1,0 +1,2 @@
+# Keep the packaged bytes unchanged across platforms for source-manifest checks.
+* -text

@@ -1,0 +1,7 @@
+[project]
+name = "comfyui-zura-paintout"
+version = "1.0.0rc1"
+description = "Artist-guided ComfyUI video paintout workflows with an optional local interface"
+license = {text = "AGPL-3.0-only"}
+requires-python = ">=3.10"
+

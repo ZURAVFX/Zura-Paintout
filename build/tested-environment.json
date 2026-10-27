@@ -1,0 +1,20 @@
+{
+  "scope": "Development GPU environment, exact observed versions; not a lockfile or minimum hardware guarantee. Clean CPU environment is recorded separately.",
+  "python": "3.13.12",
+  "comfyui_commit": "483dae4326356b81de05d27aca3f433dd323cc25",
+  "comfyui_version": "0.42.5",
+  "comfyui_worktree_changes": [],
+  "ltxvideo_commit": "220e1d45aa0469f518e982102fca4dca92a61862",
+  "kjnodes_commit": "996b010ae4613ae0743121ace5975830dcf8e6af",
+  "packages": {
+    "comfyui-frontend-package": "1.55.18",
+    "torch": "2.9.1+cu130",
+    "numpy": "2.4.4",
+    "Pillow": "12.2.0",
+    "scipy": "1.17.1",
+    "OpenImageIO": "3.1.17.0",
+    "opencv-python-headless": "5.0.0.93"
+  },
+  "gpu": "NVIDIA GeForce RTX 4080 16 GB",
+  "ffmpeg": "ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers"
+}

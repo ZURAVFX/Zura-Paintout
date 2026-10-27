@@ -15,9 +15,9 @@ Want a guided interface for preparing the inputs? Optional [Paintout Studio](app
 
 ## Run the Comfy workflow
 
-**This is the recommended way to use Zura Paintout.** Installation is being prepared for ComfyUI's extension manager. Registry submission and availability are separate steps; this README will link the listing once publication is confirmed.
+**This is the recommended way to use Zura Paintout.** [Zura Paintout is now listed in Comfy Registry](https://registry.comfy.org/nodes/zura-paintout). Version 0.1.0 has been submitted and is currently marked Pending. The public Registry search is verified; availability in your Manager may take time to refresh.
 
-The intended setup uses ComfyUI's interface throughout:
+Once the pack appears in your Manager, setup uses ComfyUI's interface throughout:
 
 1. Open **Manager / Extensions**, search for **Zura Paintout**, install it and restart when prompted. Manager installs the Python dependencies declared by the pack.
 2. Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through Manager if they are missing. Download the required LTX model files using the links in [`build/model-files.md`](build/model-files.md), then place them in the listed folders using your file browser. Model access approval may be required. If FFmpeg is missing, copy `ffmpeg` and `ffprobe` into `ComfyUI/ffmpeg/bin/`. See [setup without a terminal](build/no-terminal-setup.md).

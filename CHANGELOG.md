@@ -38,3 +38,7 @@ First manual-testing candidate. Local ComfyUI workspace using Zura Studio's inte
 This candidate is ready for artist acceptance testing, not a claim that arbitrary shots produce production-quality removal. Overlap and fast-motion edges require close review. The bedroom boy-removal test remains diagnostic.
 
 Windows file picking is implemented. Rotated video must be conformed first; imported edits must have normal orientation and exact source dimensions. Native model support depends on current ComfyUI. No models or sample footage are bundled.
+
+### Viewer toolbar refinement, 29 October 2026
+
+Moved selection, paint, erase, pan, undo and clear into a right-aligned viewer header, preserving image visibility and narrow-screen access. Removed text subject selection from the Studio interface; point selection, mask preview, manual painting and imported masks remain. Native graph text-selection support is unchanged.

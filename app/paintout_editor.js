@@ -55,10 +55,9 @@ export class PaintoutEditor{
     this.timelineHost=el('div');this.timelineHost.className='zp-editor-timeline-host';workspace.page.querySelector('.zf-viewer').after(this.timelineHost);
     this.timeline=new PaintoutTimeline(this.timelineHost,{onTrim:(start,end,commit)=>{workspace.state.startFrame=start;workspace.state.frameCount=end-start+1;workspace.$('start').value=start;workspace.$('count').value=end-start+1;if(!this.customRange){this.$('range-start').value=start;this.$('range-end').value=end;}if(commit)workspace.save();workspace.render();},onSeek:f=>workspace.seek(f),onCreate:f=>this.createFrame(f),onSelect:i=>this.selectFrame(i),onRemove:i=>this.removeFrame(i),onMaskSelect:async f=>{if(workspace.busy())return;await this.setStage('mask');workspace.seek(f);}});
     this.tools=el('section');this.tools.className='zp-editor-tools';this.tools.setAttribute('aria-label','Paintout editing tools');this.timelineHost.after(this.tools);
-    this.tools.innerHTML=`<div class="zp-editor-mask-intro"><strong>1. Select what to remove</strong><span>Click the subject, describe it, or paint the mask yourself. Red is the area to remove.</span><button type="button" data-editor="import-mask">Import mask video</button><span>Custom mask: white removes · black keeps. Match the plate’s size, frame rate and length.</span></div>
+    this.tools.innerHTML=`<div class="zp-editor-mask-intro"><strong>1. Select what to remove</strong><span>Click the subject or paint the mask yourself. Red is the area to remove.</span><button type="button" data-editor="import-mask">Import mask video</button><span>Custom mask: white removes · black keeps. Match the plate’s size, frame rate and length.</span></div>
       <div class="zp-editor-tool-row"><div class="zp-editor-tool-group" role="group" aria-label="Mask tools"><button type="button" data-tool="include" title="Click on the subject to include it">${maskIcons['circle-plus']}<span>Select subject</span></button><button type="button" data-tool="exclude" title="Click on unwanted areas to exclude them">${maskIcons['circle-minus']}<span>Exclude area</span></button><button type="button" data-tool="brush" title="Draw the removal mask manually">${maskIcons.paintbrush}<span>Paint mask</span></button><button type="button" data-tool="protect" title="Erase from the removal mask">${maskIcons.eraser}<span>Erase mask</span></button><button type="button" data-tool="pan" title="Drag to move the view. Scroll to zoom.">${maskIcons.hand}<span>Pan</span></button></div><button type="button" data-editor="undo">${maskIcons['undo-2']}<span>Undo</span></button><button type="button" data-editor="clear">Clear selection</button></div>
-      <div class="zp-editor-tool-row"><label class="zp-editor-description">Or describe the subject<input data-editor="subject" placeholder="e.g. the person in the red coat" /></label><button type="button" data-editor="selection">Preview mask on this frame</button></div>
-      <p class="zp-editor-tool-help" data-editor="tool-help"></p>
+      <div class="zp-editor-selection-row"><p class="zp-editor-tool-help" data-editor="tool-help"></p><button type="button" data-editor="selection">Preview mask on this frame</button></div>
       <div class="zp-editor-tool-row"><label data-editor="brush-control">Brush size <output data-editor="brush-value">32 px</output><input data-editor="brush" type="range" min="1" max="200" value="32" /></label><label title="Expand the hard removal boundary in original plate pixels">Expand mask <output data-editor="grow-value">0 px</output><input data-editor="grow" type="range" min="0" max="100" value="0" /></label><label title="Only changes how the red overlay is displayed, not the mask">Red overlay<input data-editor="opacity" type="range" min="0" max="100" value="45" /></label></div>
       <div class="zp-editor-mask-actions"><div class="zp-editor-track-guide"><strong>2. Track the shot</strong><span data-editor="track-help">Check the red area, then track it through your trimmed shot.</span></div>
         <button type="button" class="zp-editor-primary" data-editor="track">Track mask through shot</button><button type="button" data-editor="continue">Next: clean frames</button>
@@ -70,16 +69,19 @@ export class PaintoutEditor{
         <details><summary>Absence / mask history</summary><div class="zp-editor-tool-row"><button type="button" data-editor="absent">Subject absent in section</button><button type="button" data-editor="previous-mask">Previous mask pass</button><button type="button" data-editor="next-mask">Next mask pass</button></div></details></div>
       <div class="zp-editor-clean-actions" hidden><strong data-editor="frame-label">Add a clean frame on the timeline</strong><label class="zp-editor-description">Cleanup instruction<input data-editor="instruction" value="Remove the selected object and reconstruct the background." /></label><button type="button" class="zp-editor-primary" data-editor="clean">Clean with FLUX 3</button><button type="button" data-editor="download">Download original</button><button type="button" data-editor="reference" hidden>Download frame reference</button><button type="button" data-editor="import">Import edited frame</button><label data-editor="version-control" hidden>Saved version<select data-editor="version" aria-label="Saved clean-frame version"></select></label><button type="button" data-editor="accept" hidden>Use clean frame</button><button type="button" data-editor="reject" hidden>Discard result (X)</button></div>
       <p data-editor="status" role="status" aria-live="polite"></p><div data-editor="job" hidden><progress aria-label="Frame editing progress"></progress><span data-editor="job-label">Queued</span><button type="button" data-editor="cancel">Cancel this run</button></div>`;
+    this.viewerToolbar=this.tools.querySelector('.zp-editor-tool-row');
+    this.viewerToolbar.className='zp-editor-viewer-toolbar';
+    this.viewerToolbar.setAttribute('role','group');this.viewerToolbar.setAttribute('aria-label','Frame editing tools');
+    this.viewerHost.prepend(this.viewerToolbar);
+    this.$('undo').title='Undo the last edit';this.$('clear').title='Clear the mask and selection on this frame';
     this.subjectChoices=el('section');this.subjectChoices.className='zp-editor-subject-choices';this.subjectChoices.hidden=true;this.subjectChoices.setAttribute('aria-label','Choose the subject to remove');this.tools.querySelector('.zp-editor-mask-intro').after(this.subjectChoices);
     this.$('import-mask').onclick=()=>workspace.pickMask();
     this.maskSummary=el('div');this.maskSummary.className='zp-editor-mask-summary';this.maskSummary.innerHTML='<span></span><button type="button">Review mask</button>';this.maskSummary.querySelector('button').onclick=()=>this.setStage('mask');workspace.$('mask-control')?.after(this.maskSummary);
-    this.$('subject').value=workspace.state.maskSubject||'';
     workspace.state.maskFeather=0;this.$('grow').value=workspace.state.maskGrow??0;this.$('grow').oninput=()=>this.morph(false);this.$('grow').onchange=()=>this.morph(true);
-    for(const b of this.tools.querySelectorAll('[data-tool]'))b.onclick=()=>{this.viewer.setTool(b.dataset.tool);this.tool=b.dataset.tool;this.updateControls();};
+    for(const b of this.viewerToolbar.querySelectorAll('[data-tool]'))b.onclick=()=>{this.viewer.setTool(b.dataset.tool);this.tool=b.dataset.tool;this.updateControls();};
     this.tool='include';this.viewer.setTool(this.tool);this.$('brush').oninput=()=>{this.viewer.setBrushSize(Number(this.$('brush').value));this.$('brush-value').textContent=this.$('brush').value+' px';};this.viewer.setBrushSize(32);
     this.$('opacity').oninput=()=>this.viewer.setOpacity(Number(this.$('opacity').value)/100);
     this.$('undo').onclick=()=>{this.viewer.undo();if(this.stage==='clean')this.saveCleanMask();if(this.stage==='mask'&&this.manualDirty)this.flushManual().catch(e=>this.status(e.message));};this.$('clear').onclick=()=>{this.viewer.clear();if(this.stage==='clean')this.saveCleanMask();if(this.stage==='mask'&&this.maskSegment()){const segment=this.maskSegment();segment.pendingMask=this.viewer.getSelection().mask;segment.ready=false;this.w.save();}else if(this.stage==='mask'){this.manualDirty=true;this.manualVersion=(this.manualVersion||0)+1;this.flushManual().catch(e=>this.status(e.message));}this.selectionDirty=true;this.candidate=null;this.updateControls();};
-    this.$('subject').oninput=()=>{workspace.state.maskSubject=this.$('subject').value;this.subjectChanged=true;this.viewer.setSelection({});this.status('Preview the new subject selection before tracking. The overlay still shows your saved mask.');workspace.save();};
     this.$('continue').onclick=()=>this.setStage('clean');this.$('selection').onclick=()=>this.manualDirty?this.flushManual().catch(e=>this.status(e.message)):this.runMask(true);this.$('track').onclick=()=>this.runMask(false);this.$('absent').onclick=()=>this.runMask(false,'absent');
     for(const field of ['range-start','range-end','direction','operation'])this.$(field).onchange=()=>{this.customRange=true;this.saveSegmentRange();this.updateControls();};
     this.$('repair-segment').onclick=()=>this.beginMaskSegment('replace').catch(error=>this.status(error.message));
@@ -107,7 +109,7 @@ export class PaintoutEditor{
     workspace.api.addEventListener?.('progress',event=>{const detail=event.detail;if(detail?.prompt_id!==this.toolJob?.id||!Number.isFinite(detail.value)||!Number.isFinite(detail.max)||detail.max<=0)return;const bar=this.$('job').querySelector('progress');bar.max=detail.max;bar.value=detail.value;this.$('job-label').textContent=`${this.toolJob.stages[detail.node]||'Processing'} · ${detail.value} of ${detail.max}`;});
     this.morph(false);this.update();
   }
-  $(key){return this.tools.querySelector(`[data-editor="${key}"]`);}
+  $(key){return this.tools.querySelector(`[data-editor="${key}"]`)||this.viewerToolbar?.querySelector(`[data-editor="${key}"]`);}
   status(message){this.$('status').textContent=message||'';}
   busy(){return !!(this.frameLoading||this.toolJob||this.submitting||this.loadingProject||this.openingProject||this.importing);}
   selected(){return this.w.state.anchors[this.w.selected];}
@@ -195,7 +197,7 @@ export class PaintoutEditor{
     const w=this.w;
     for(const [field,key]of Object.entries({start:'startFrame',count:'frameCount',fps:'sequenceFps',colour:'sourceColour',processing:'processingSpace',width:'width',height:'height',output:'outputMode',seed:'seed'})){const input=w.$(field);if(input)input.value=w.state[key];}
     if(w.$('prompt'))w.$('prompt').value=w.prompts[w.state.mode]||'';
-    this.$('subject').value=w.state.maskSubject||'';this.$('grow').value=w.state.maskGrow??0;w.state.maskFeather=0;
+    this.$('grow').value=w.state.maskGrow??0;w.state.maskFeather=0;
     this.$('instruction').value=this.selected()?.editPrompt||'Remove the selected object and reconstruct the background.';this.$('range-start').value=w.state.startFrame;this.$('range-end').value=w.state.startFrame+w.state.frameCount-1;
     const segment=this.maskSegment();if(segment){this.customRange=true;this.$('range-start').value=segment.start;this.$('range-end').value=segment.end;this.$('operation').value=segment.operation;this.$('direction').value=segment.direction;}
     w.syncAnchorControls?.(w.selected);w.updatePlayhead();
@@ -312,13 +314,14 @@ export class PaintoutEditor{
     this.viewerHost.inert=busy||!!this.candidate;this.viewerHost.setAttribute('aria-busy',String(busy));if(busy)this.viewer.drag=null;
     for(const input of this.tools.querySelectorAll('input,select'))input.disabled=busy;
     for(const b of this.tools.querySelectorAll('button'))b.disabled=busy;
+    for(const b of this.viewerToolbar.querySelectorAll('button'))b.disabled=busy||!!this.candidate;
     this.tools.querySelector('.zp-editor-mask-actions').hidden=clean;this.tools.querySelector('.zp-editor-clean-actions').hidden=!clean;
-    this.$('subject').closest('.zp-editor-tool-row').hidden=clean;
+    this.$('selection').closest('.zp-editor-selection-row').hidden=clean;
     this.tools.querySelector('.zp-editor-mask-intro').hidden=clean;
     this.$('brush-control').hidden=!['brush','protect'].includes(this.tool);
     const help={include:'Click inside the subject to add + points. Then preview the mask. Click a point again to remove it.',exclude:'Click outside the subject to add − points where the mask spills. Preview again to refine it.',brush:'Paint manually: drag over the area to remove. Changes save to this frame automatically. Scrub to any other frame to fix it too.',protect:'Erase manually: drag over red areas to keep them. Changes save to this frame automatically. Undo restores the last stroke.',pan:'Drag to pan. Scroll to zoom. Press 0 to fit the whole frame.'};
     this.$('tool-help').textContent=clean&&['brush','protect'].includes(this.tool)?(this.tool==='brush'?'Paint everything FLUX should remove, including shadows or small details. Only this clean frame’s mask changes.':'Erase any area FLUX must keep. Only this clean frame’s mask changes.'):help[this.tool];
-    const selection=this.viewer.getSelection(false),hasSelection=selection.hasMask||selection.positive.length>0||!!this.$('subject').value.trim();
+    const selection=this.viewer.getSelection(false),hasSelection=selection.hasMask||selection.positive.length>0;
     this.$('selection').disabled=busy||(!hasSelection&&!this.manualDirty);
     this.$('selection').textContent=this.tool==='brush'||this.tool==='protect'?'Save mask on this frame':'Preview mask on this frame';
     this.$('track').disabled=busy||!selection.hasMask||this.subjectChanged||this.selectionDirty||!!this.manualSaving;
@@ -334,8 +337,8 @@ export class PaintoutEditor{
     if(this.maskChoices&&!this.subjectChoices.hidden){this.$('track').disabled=true;this.$('track-help').textContent='Choose a subject from the previews above before tracking.';}
     this.$('continue').disabled=busy||!(this.w.state.mask||this.w.state.maskRevision!=null);
 
-    for(const b of this.tools.querySelectorAll('[data-tool=include],[data-tool=exclude]'))b.hidden=clean;
-    for(const b of this.tools.querySelectorAll('[data-tool]'))b.setAttribute('aria-pressed',String(b.dataset.tool===this.tool));
+    for(const b of this.viewerToolbar.querySelectorAll('[data-tool=include],[data-tool=exclude]'))b.hidden=clean;
+    for(const b of this.viewerToolbar.querySelectorAll('[data-tool]'))b.setAttribute('aria-pressed',String(b.dataset.tool===this.tool));
     const a=this.selected();this.$('frame-label').textContent=a?`Clean frame ${a.frame} · ${a.frame<this.w.state.startFrame||a.frame>=this.w.state.startFrame+this.w.state.frameCount?'Outside trim. Extend the range to use this guide.':({needs_review:'Review result',needs_edit:'Ready to clean',accepted:'Accepted'})[a.status]||'Accepted'}`:'Add a clean frame on the timeline';
     const versions=this.frameVersions(a),versionSelect=this.$('version');this.$('version-control').hidden=!clean||versions.length<2;
     versionSelect.replaceChildren(...versions.map((version,index)=>{const option=el('option',`Version ${index+1} · ${version.method==='flux3'?'FLUX':version.method==='manual'?'Imported':'Saved'}`);option.value=version.file;return option;}));versionSelect.value=a?.file||'';versionSelect.disabled=busy||!!this.candidate||a?.frame!==this.w.playhead;versionSelect.title=this.candidate?'Use or discard the current result before choosing a saved version.':'Choose the clean image used to guide this frame.';
@@ -345,7 +348,7 @@ export class PaintoutEditor{
     if(clean&&this.candidate)this.$('grow').disabled=true;
     const review=this.candidate?.review;this.importReview.hidden=!clean||!onFrame||!review;this.$('import-differences').textContent=review?`${review.outside_pixels.toLocaleString()} changed pixels lie outside your repair area. Red highlights those changes. Keep the current bounds or include the intended edits.`:'';
     this.$('import-current').disabled=this.$('import-include').disabled=busy||!onFrame;
-    if(review){for(const input of this.tools.querySelectorAll('input,select'))if(input!==this.$('opacity'))input.disabled=true;for(const b of this.tools.querySelectorAll('[data-tool],[data-editor=undo],[data-editor=clear]'))b.disabled=true;}
+    if(review){for(const input of this.tools.querySelectorAll('input,select'))if(input!==this.$('opacity'))input.disabled=true;for(const b of this.viewerToolbar.querySelectorAll('button'))b.disabled=true;}
     this.$('clean').disabled=busy||!onFrame||!!this.candidate;this.$('download').disabled=busy||!onFrame;this.$('import').disabled=busy||!onFrame||!!this.candidate;this.$('accept').disabled=busy||!onFrame;
     this.$('job').hidden=!this.toolJob;this.$('cancel').disabled=!this.toolJob;
     this.$('previous-mask').disabled=busy||!this.document?.mask_history?.length;this.$('next-mask').disabled=busy||!this.document?.mask_history?.length;
@@ -468,7 +471,7 @@ export class PaintoutEditor{
       }
       if(this.w.playhead<start||this.w.playhead>end)throw Error('Move the playhead inside the section to track.');
       const graph=maskGraph({source:this.w.state.source,project:this.project,revision:this.revision,frame:this.w.playhead,startFrame:start,frameCount:end-start+1,
-        colourSpace:this.w.state.sourceColour,operation:operation||this.$('operation').value,direction:this.$('direction').value,selection:{...selection,hasMask},text:this.$('subject').value},this.w.modelInfo);
+        colourSpace:this.w.state.sourceColour,operation:operation||this.$('operation').value,direction:this.$('direction').value,selection:{...selection,hasMask},text:''},this.w.modelInfo);
       await this.queue(graph,'mask');if(this.toolJob){this.toolJob.maskSingle=single;this.toolJob.maskSegment=!!segment;this.w.save();}
     }catch(e){this.status(e.message);}
   }

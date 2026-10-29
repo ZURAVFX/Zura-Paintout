@@ -170,3 +170,27 @@
 
 .zp-editor-tools input:not([type=range]),.zp-editor-tools textarea{-webkit-user-select:text;user-select:text;cursor:text}
 .zp-editor-tools input::selection,.zp-editor-tools textarea::selection{background:var(--gs-accent,#caff00);color:var(--gs-ink,#101013)}
+
+/* A dedicated viewer header keeps tools beside the image without covering it. */
+.zp-editor-viewer-host{display:flex;flex-direction:column}
+.zp-editor-viewer-host[hidden]{display:none}
+.zp-editor-viewer-host>.zp-editor-viewer{position:relative;inset:auto;flex:1;min-height:0}
+.zp-editor-viewer-toolbar{display:flex;flex:none;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;padding:8px;background:var(--zc-canvas,#101013);font:12px/1.4 'Segoe UI',system-ui,sans-serif;color:var(--zc-text,#f2f2f0)}
+.zp-editor-viewer-toolbar .zp-editor-tool-group{padding:0;background:transparent;gap:4px}
+.zp-editor-viewer-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:36px;min-height:36px;padding:6px 8px;border:1px solid transparent;border-radius:5px;background:transparent;color:inherit;font:inherit;white-space:nowrap;cursor:pointer}
+.zp-editor-viewer-toolbar button:hover{background:var(--zc-hover,#26262b)}
+.zp-editor-viewer-toolbar button[aria-pressed=true]{background:var(--zc-selected,#292a21);color:var(--gs-accent,#caff00)}
+.zp-editor-viewer-toolbar button[data-editor=undo],.zp-editor-viewer-toolbar button[data-editor=clear]{border-color:var(--gs-line,#33333d)}
+.zp-editor-viewer-toolbar svg{width:18px;height:18px;flex:none}
+.zp-editor-viewer-toolbar button:disabled{opacity:.45;cursor:default}
+.zp-editor-viewer-toolbar button:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:2px}
+.zp-editor-viewer-toolbar button[hidden]{display:none}
+.zp-editor-selection-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px}
+.zp-editor-selection-row[hidden]{display:none}
+.zp-editor-selection-row .zp-editor-tool-help{flex:1 1 260px;margin:0}
+@media(max-width:900px){
+ .zp-editor-viewer-toolbar [data-tool]>span,.zp-editor-viewer-toolbar [data-editor=undo]>span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .zp-editor-viewer-toolbar .zp-editor-tool-group{display:contents}
+ .zp-editor-viewer-toolbar{gap:4px}
+}
+@media(pointer:coarse){.zp-editor-viewer-toolbar button{min-width:44px;min-height:44px}}

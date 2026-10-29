@@ -160,7 +160,7 @@ export class PaintoutEditor{
     const id=crypto.randomUUID().replaceAll('-','');w.state.activeMaskSegment=id;w.state.maskSegmentDraft={id,source:w.state.source,frame,start:frame,end,operation,direction:'forward',ready:false};
     this.$('tracking-options').open=false;this.customRange=true;this.$('range-start').value=frame;this.$('range-end').value=end;this.$('operation').value=operation;this.$('direction').value='forward';
     this.maskChoices=null;this.subjectChoices.hidden=true;this.previewSequence++;this.subjectChanged=false;this.selectionDirty=true;this.viewer.setSelection({});await this.viewer.setMask(null);this.viewer.setOpacity(Number(this.$('opacity').value)/100);this.tool='include';this.viewer.setTool('include');
-    this.status(operation==='add'?'Select or paint the additional subject, then preview this segment. Existing masks are kept.':'Select or paint the subject again, then preview. Only the chosen range will be replaced; earlier frames are kept.');this.updateControls();w.save();
+    this.status(operation==='add'?'Select or paint the additional subject, then preview this segment. Existing masks are kept.':'Select or paint the subject again, then preview. Only the chosen range will be replaced; earlier frames are kept.');this.updateControls();w.save();this.authoritativePreview().catch(e=>this.status(e.message));
   }
   async finishMaskSegment(){
     if(this.w.busy())return;

@@ -211,3 +211,22 @@
  .zp-editor-viewer-toolbar{gap:4px}
 }
 @media(pointer:coarse){.zp-editor-viewer-toolbar button{min-width:44px;min-height:44px}}
+
+/* Preview and tracking share one compact action area. */
+.zp-editor-mask-flow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 24px;align-items:start}
+.zp-editor-mask-flow .zp-editor-selection-row{padding:0;gap:8px;align-items:flex-start;text-align:left}
+.zp-editor-mask-flow .zp-editor-selection-row .zp-editor-tool-help{min-height:34px;font-size:11px}
+.zp-editor-mask-flow .zp-editor-selection-cue{font-size:11px}
+.zp-editor-mask-flow .zp-editor-mask-actions{padding:0;border:0;gap:8px}
+.zp-editor-mask-flow .zp-editor-track-guide{flex-basis:100%;min-height:34px;gap:2px}
+.zp-editor-mask-flow [data-editor=track],.zp-editor-mask-flow [data-editor=continue]{min-height:44px}
+.zp-editor-mask-flow>.zp-editor-tool-row{grid-column:1/-1}
+.zp-editor-mask-flow>[data-editor=job]{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:minmax(100px,1fr) auto;gap:8px 16px;padding:10px 0;border-top:0;border-bottom:1px solid var(--gs-line,#33333d)}
+.zp-editor-mask-flow>[data-editor=job] progress{grid-column:1;grid-row:2;width:100%;height:8px}
+.zp-editor-mask-flow>[data-editor=job] span{grid-column:1;grid-row:1;font-weight:600}
+.zp-editor-mask-flow>[data-editor=job] button{grid-column:2;grid-row:1/3}
+.zp-editor-mask-flow>[data-editor=status]{grid-column:1/-1;margin:0}
+.zp-editor-mask-flow>[data-editor=status]:empty{display:none}
+.zp-editor-mask-flow.is-clean{display:flex;flex-direction:column}
+.zp-editor-mask-flow.is-clean>[data-editor=job],.zp-editor-mask-flow.is-clean>.zp-editor-tool-row{width:100%}
+@media(max-width:700px){.zp-editor-mask-flow{grid-template-columns:minmax(0,1fr);gap:12px}.zp-editor-mask-flow .zp-editor-selection-row [data-editor=selection]{min-width:0;width:100%}.zp-editor-mask-flow .zp-editor-track-guide{min-height:0}.zp-editor-mask-flow .zp-editor-mask-actions{padding-top:10px;border-top:1px solid var(--gs-line,#33333d)}}

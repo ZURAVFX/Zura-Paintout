@@ -60,7 +60,7 @@ export class PaintoutEditor{
       <div class="zp-editor-tool-row"><div class="zp-editor-tool-group" role="group" aria-label="Mask tools"><button type="button" data-tool="include" title="Click on the subject to include it">${maskIcons['circle-plus']}<span>Select subject</span></button><button type="button" data-tool="exclude" title="Click on unwanted areas to exclude them">${maskIcons['circle-minus']}<span>Exclude area</span></button><button type="button" data-tool="brush" title="Draw the removal mask manually">${maskIcons.paintbrush}<span>Paint mask</span></button><button type="button" data-tool="protect" title="Erase from the removal mask">${maskIcons.eraser}<span>Erase mask</span></button><button type="button" data-tool="pan" title="Drag to move the view. Scroll to zoom.">${maskIcons.hand}<span>Pan</span></button></div><button type="button" data-editor="undo">${maskIcons['undo-2']}<span>Undo</span></button><button type="button" data-editor="clear">Clear selection</button></div>
       <div class="zp-editor-selection-row"><p class="zp-editor-tool-help" data-editor="tool-help"></p><button type="button" class="zp-editor-primary" data-editor="selection">Preview mask on this frame</button><p class="zp-editor-selection-cue" data-editor="selection-cue"></p></div>
       <div class="zp-editor-tool-row"><label data-editor="brush-control">Brush size <output data-editor="brush-value">32 px</output><input data-editor="brush" type="range" min="1" max="200" value="32" /></label><label title="Expand the hard removal boundary in original plate pixels">Expand mask <output data-editor="grow-value">0 px</output><input data-editor="grow" type="range" min="0" max="100" value="0" /></label><label title="Only changes how the red overlay is displayed, not the mask">Red overlay<input data-editor="opacity" type="range" min="0" max="100" value="45" /></label></div>
-      <div class="zp-editor-mask-actions"><div class="zp-editor-track-guide"><strong>2. Track the shot</strong><span data-editor="track-help">Check the red area, then track it through your trimmed shot.</span></div>
+      <div class="zp-editor-mask-actions"><div class="zp-editor-track-guide"><strong>Track the shot</strong><span data-editor="track-help">Check the red area, then track it through your trimmed shot.</span></div>
         <button type="button" class="zp-editor-primary" data-editor="track">Track mask through shot</button><button type="button" data-editor="continue">Next: clean frames</button>
         <div class="zp-editor-segment-actions" role="group" aria-label="Add or repair tracking"><button type="button" data-editor="repair-segment">Repair tracking from here</button><button type="button" data-editor="add-segment">Add another mask</button></div>
         <div class="zp-editor-segment-draft" data-editor="segment-draft" hidden><strong data-editor="segment-label"></strong><span data-editor="segment-help"></span><button type="button" data-editor="segment-seed">Go to selection frame</button><button type="button" data-editor="segment-cancel">Close segment editor</button></div>
@@ -69,8 +69,14 @@ export class PaintoutEditor{
         <details class="zp-editor-segments"><summary data-editor="segments-label">Tracking segments</summary><ol data-editor="segments"></ol></details>
         <details><summary>Absence / mask history</summary><div class="zp-editor-tool-row"><button type="button" data-editor="absent">Subject absent in section</button><button type="button" data-editor="previous-mask">Previous mask pass</button><button type="button" data-editor="next-mask">Next mask pass</button></div></details></div>
       <div class="zp-editor-clean-actions" hidden><strong data-editor="frame-label">Add a clean frame on the timeline</strong><label class="zp-editor-description">Cleanup instruction<input data-editor="instruction" value="Remove the selected object and reconstruct the background." /></label><button type="button" class="zp-editor-primary" data-editor="clean">Clean with FLUX 3</button><button type="button" data-editor="download">Download original</button><button type="button" data-editor="reference" hidden>Download frame reference</button><button type="button" data-editor="import">Import edited frame</button><label data-editor="version-control" hidden>Saved version<select data-editor="version" aria-label="Saved clean-frame version"></select></label><button type="button" data-editor="accept" hidden>Use clean frame</button><button type="button" data-editor="reject" hidden>Discard result (X)</button></div>
-      <p data-editor="status" role="status" aria-live="polite"></p><div data-editor="job" hidden><progress aria-label="Frame editing progress"></progress><span data-editor="job-label">Queued</span><button type="button" data-editor="cancel">Cancel this run</button></div>`;
-    this.viewerToolbar=this.tools.querySelector('.zp-editor-tool-row');
+      <p data-editor="status" role="status" aria-live="polite"></p><div data-editor="job" hidden><progress aria-label="Mask or frame processing progress"></progress><span data-editor="job-label">Queued</span><button type="button" data-editor="cancel">Cancel this run</button></div>`;
+    const viewerToolbar=this.tools.querySelector('.zp-editor-tool-row');
+    const maskFlow=el('div');maskFlow.className='zp-editor-mask-flow';
+    const selectionRow=this.tools.querySelector('.zp-editor-selection-row'),maskActions=this.tools.querySelector('.zp-editor-mask-actions');
+    this.tools.querySelector('.zp-editor-mask-intro').after(maskFlow);
+    const maskSettings=selectionRow.nextElementSibling;
+    maskFlow.append(selectionRow,maskActions,maskSettings,this.tools.querySelector('[data-editor=job]'),this.tools.querySelector('[data-editor=status]'));
+    this.viewerToolbar=viewerToolbar;
     this.viewerToolbar.className='zp-editor-viewer-toolbar';
     this.viewerToolbar.setAttribute('role','group');this.viewerToolbar.setAttribute('aria-label','Frame editing tools');
     this.viewerHost.prepend(this.viewerToolbar);
@@ -111,8 +117,15 @@ export class PaintoutEditor{
     document.addEventListener('keydown',this.discardShortcut);
 
     this.viewerHost.ondragover=e=>{e.preventDefault();};this.viewerHost.ondrop=e=>{e.preventDefault();const file=e.dataTransfer?.files?.[0];if(file)this.importDropped(file);};
-    workspace.api.addEventListener?.('executing',event=>{const detail=event.detail;if(detail?.prompt_id!==this.toolJob?.id||!detail.node)return;this.$('job-label').textContent=this.toolJob.stages[detail.node]||'Processing';this.$('job').querySelector('progress').removeAttribute('value');});
-    workspace.api.addEventListener?.('progress',event=>{const detail=event.detail;if(detail?.prompt_id!==this.toolJob?.id||!Number.isFinite(detail.value)||!Number.isFinite(detail.max)||detail.max<=0)return;const bar=this.$('job').querySelector('progress');bar.max=detail.max;bar.value=detail.value;this.$('job-label').textContent=`${this.toolJob.stages[detail.node]||'Processing'} · ${detail.value} of ${detail.max}`;});
+    workspace.api.addEventListener?.('executing',event=>{
+      const d=event.detail,job=this.toolJob;if(!job||!d?.node||(d.prompt_id&&d.prompt_id!==job.id)||!job.stages[d.node])return;
+      job.node=d.node;job.phase=job.stages[d.node];this.jobProgress=null;this.$('job-label').textContent=job.phase;this.$('job').querySelector('progress').removeAttribute('value');
+    });
+    workspace.api.addEventListener?.('progress',event=>{
+      const d=event.detail,job=this.toolJob;if(!job||(d?.prompt_id?d.prompt_id!==job.id:!job.node)||!Number.isFinite(d.value)||!Number.isFinite(d.max)||d.max<=0)return;
+      const bar=this.$('job').querySelector('progress');bar.max=d.max;bar.value=d.value;this.jobProgress=true;
+      this.$('job-label').textContent=`${job.stages[d.node||job.node]||job.phase||'Processing'} · ${Math.round(d.value/d.max*100)}%`;
+    });
     this.morph(false);this.update();
   }
   $(key){return this.tools.querySelector(`[data-editor="${key}"]`)||this.viewerToolbar?.querySelector(`[data-editor="${key}"]`);}
@@ -339,7 +352,7 @@ export class PaintoutEditor{
     for(const b of this.tools.querySelectorAll('button'))b.disabled=busy;
     for(const b of this.viewerToolbar.querySelectorAll('button'))b.disabled=busy||!!this.candidate;
     this.tools.querySelector('.zp-editor-mask-actions').hidden=clean;this.tools.querySelector('.zp-editor-clean-actions').hidden=!clean;
-    this.$('selection').closest('.zp-editor-selection-row').hidden=clean;
+    this.tools.querySelector('.zp-editor-mask-flow').classList.toggle('is-clean',clean);this.$('selection').closest('.zp-editor-selection-row').hidden=clean;
     this.tools.querySelector('.zp-editor-mask-intro').hidden=clean;
     this.$('brush-control').hidden=!['brush','protect'].includes(this.tool);
     const help={include:'Click inside the subject to add + points. Then preview the mask. Click a point again to remove it.',exclude:'Click outside the subject to add − points where the mask spills. Preview again to refine it.',brush:'Paint manually: drag over the area to remove. Changes save to this frame automatically. Scrub to any other frame to fix it too.',protect:'Erase manually: drag over red areas to keep them. Changes save to this frame automatically. Undo restores the last stroke.',pan:'Drag to pan. Scroll to zoom. Press 0 to fit the whole frame.'};
@@ -350,7 +363,7 @@ export class PaintoutEditor{
     this.$('track').disabled=busy||!selection.hasMask||this.subjectChanged||this.selectionDirty||!!this.manualSaving;
     const previewNeeded=this.selectionDirty||!selection.hasMask;
     this.$('selection').classList.toggle('zp-editor-primary',previewNeeded);
-    this.$('selection-cue').textContent=this.manualSaving?'Saving your mask…':this.manualDirty?'Save this frame before tracking.':previewNeeded?(hasSelection?'Next: preview your selection to see the red removal mask.':'First, click the subject in the viewer. Then preview its mask.'):'Mask ready. Check the red area, then track it through the shot below.';
+    this.$('selection-cue').textContent=this.manualSaving?'Saving your mask…':this.manualDirty?'Save this frame before tracking.':previewNeeded?(hasSelection?'Next: preview your selection to see the red removal mask.':'First, click the subject in the viewer. Then preview its mask.'):'Mask ready. Check the red area, then track the shot.';
     const segment=this.maskSegment(),atSeed=segment?.frame===this.w.playhead;
     this.$('segment-draft').hidden=!segment;
     this.$('segment-label').textContent=segment?`New mask · select on frame ${segment.frame}`:'';
@@ -380,7 +393,7 @@ export class PaintoutEditor{
     this.$('import-current').disabled=this.$('import-include').disabled=busy||!onFrame;
     if(review){for(const input of this.tools.querySelectorAll('input,select'))if(input!==this.$('opacity'))input.disabled=true;for(const b of this.viewerToolbar.querySelectorAll('button'))b.disabled=true;}
     this.$('clean').disabled=busy||!onFrame||!!this.candidate;this.$('download').disabled=busy||!onFrame;this.$('import').disabled=busy||!onFrame||!!this.candidate;this.$('accept').disabled=busy||!onFrame;
-    this.$('job').hidden=!this.toolJob;this.$('cancel').disabled=!this.toolJob;
+    this.$('job').hidden=!(this.toolJob||this.submitting);this.$('cancel').disabled=!this.toolJob;
     this.$('previous-mask').disabled=busy||!this.document?.mask_history?.length;this.$('next-mask').disabled=busy||!this.document?.mask_history?.length;
     const reviewRanges=this.maskReviewRanges(),atFrame=reviewRanges.find(range=>this.w.playhead>=range.start_frame&&this.w.playhead<=range.end_frame);
     this.maskReview.hidden=this.stage!=='mask'||!reviewRanges.length;
@@ -493,18 +506,12 @@ export class PaintoutEditor{
       if(segment&&this.w.playhead!==segment.frame)throw Error('Return to the segment selection frame before previewing or tracking.');
       if(segment&&!single&&!operation){if(!segment.ready||this.selectionDirty||this.subjectChanged)throw Error('Preview the new segment selection before tracking.');selection={positive:[],negative:[],hasMask:true,mask:segment.seedMask};}
       const hasMask=selection.hasMask&&!this.subjectChanged&&!selection.positive.length&&!selection.negative.length;
-      let start=single?this.w.playhead:number(this.$('range-start').value,this.w.state.startFrame,this.w.state.startFrame+this.w.state.frameCount-1);
-      let end=single?start:number(this.$('range-end').value,start,this.w.state.startFrame+this.w.state.frameCount-1);
-      if(!single&&!segment&&!this.customRange&&!operation&&this.$('operation').value==='replace'){
-        start=this.w.state.startFrame;end=start+this.w.state.frameCount-1;
-        const seeds=(this.document?.mask_history||[]).filter(pass=>pass.revision<=this.w.state.maskRevision&&(!pass.metadata?.segment_id||pass.metadata.segment_id===this.activeMaskId())&&['replace','add'].includes(pass.operation)).map(pass=>pass.metadata?.frame).filter(Number.isInteger);
-        for(const seed of seeds){if(seed<this.w.playhead)start=Math.max(start,seed+1);if(seed>this.w.playhead)end=Math.min(end,seed-1);}
-        this.$('range-start').value=start;this.$('range-end').value=end;
-      }
+      let start=single?this.w.playhead:segment?Math.max(segment.start,this.w.state.startFrame):this.w.state.startFrame;
+      let end=single?start:segment?Math.min(segment.end,this.w.state.startFrame+this.w.state.frameCount-1):this.w.state.startFrame+this.w.state.frameCount-1;
       const active=this.activeMask();if(!single&&!segment&&active?.tracked){start=this.w.playhead;end=Math.min(active.end,this.w.state.startFrame+this.w.state.frameCount-1);}
       if(this.w.playhead<start||this.w.playhead>end)throw Error('Move the playhead inside the selected mask bar to track.');
       const graph=maskGraph({source:this.w.state.source,project:this.project,revision:this.revision,frame:this.w.playhead,startFrame:start,frameCount:end-start+1,
-        colourSpace:this.w.state.sourceColour,operation:operation||this.$('operation').value,direction:!single&&!segment&&active?.tracked?'forward':this.$('direction').value,selection:{...selection,hasMask},text:'',segmentId:this.activeMaskId(),tracked:!single},this.w.modelInfo);
+        colourSpace:this.w.state.sourceColour,operation:operation||this.$('operation').value,direction:!single&&!segment&&active?.tracked?'forward':segment?.direction||'both',selection:{...selection,hasMask},text:'',segmentId:this.activeMaskId(),tracked:!single},this.w.modelInfo);
       await this.queue(graph,'mask');if(this.toolJob){this.toolJob.maskSingle=single;this.toolJob.maskSegment=!!segment;this.w.save();}
     }catch(e){this.status(e.message);}
   }
@@ -522,11 +529,11 @@ export class PaintoutEditor{
     }catch(e){this.status(e.message);}
   }
   async queue(graph,kind,anchor){
-    this.submitting=true;this.status('Submitting '+(kind==='mask'?'mask pass':'frame cleanup')+'…');this.w.render();
+    this.submitting=true;this.jobProgress=null;this.$('job').querySelector('progress').removeAttribute('value');this.$('job-label').textContent=kind==='mask'?'Submitting mask…':'Submitting frame cleanup…';this.status('');this.w.render();
     try{const response=await this.w.fetch('/prompt',{prompt:graph,client_id:this.w.api.clientId,extra_data:{zura_paintout_editor:true}});
       if(!response.prompt_id)throw Error('ComfyUI did not confirm the run. Check the queue before retrying.');
-      this.toolJob={id:response.prompt_id,kind,anchor,source:this.w.state.source,frame:this.w.playhead,stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
-      this.w.state.editorJob=this.toolJob;this.w.save();this.startPolling();
+      this.toolJob={id:response.prompt_id,kind,anchor,source:this.w.state.source,frame:this.w.playhead,phase:'Queued',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
+      this.$('job-label').textContent='Queued in ComfyUI';this.w.state.editorJob=this.toolJob;this.w.save();this.startPolling();
     }finally{this.submitting=false;this.w.render();}
   }
   startPolling(){if(this.timer)return;this.timer=setInterval(()=>this.poll(),1200);this.poll();}
@@ -535,9 +542,9 @@ export class PaintoutEditor{
     try{const history=await this.w.fetch('/history/'+encodeURIComponent(job.id));if(this.toolJob!==job)return;const entry=history[job.id];
       if(!entry){
         const queue=await this.w.fetch('/queue');if(this.toolJob!==job)return;
-        const present=[...(queue.queue_running||[]),...(queue.queue_pending||[])].some(item=>item[1]===job.id);
+        const running=(queue.queue_running||[]).some(item=>item[1]===job.id),present=running||(queue.queue_pending||[]).some(item=>item[1]===job.id);
         this.missingPolls=present?0:(this.missingPolls||0)+1;
-        if(this.missingPolls<2){this.$('job-label').textContent='Queued or processing in ComfyUI';return;}
+        if(this.missingPolls<2){if(!this.jobProgress)this.$('job-label').textContent=running?(job.phase&&job.phase!=='Queued'?job.phase:'Processing mask or frame in ComfyUI…'):'Queued in ComfyUI';return;}
         this.toolJob=null;this.w.state.editorJob=null;clearInterval(this.timer);this.timer=null;this.missingPolls=0;this.w.save();this.w.render();this.status('This run is no longer in the ComfyUI queue. Your accepted frames and masks are saved.');return;
       }
       this.missingPolls=0;

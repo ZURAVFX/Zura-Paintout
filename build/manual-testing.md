@@ -45,6 +45,6 @@ Do not call this final v1 until your acceptance pass is complete.
 
 ## Mask segments and clean-frame expansion
 
-- Scrub to where tracking first loses a visible subject. Choose **Repair tracking from here**, select the subject again, preview the selection and track the segment. Set In/Out and direction explicitly when needed. Earlier frames outside the segment must remain unchanged.
-- Choose **Add another mask** for an additional subject or region. Preview and track its independent selection; existing masks should remain. Inspect saved passes under **Tracking segments**. Reappearance after full occlusion may need another seeded segment.
+- Each completed mask appears as a timeline bar. Click a bar to select its mask; drag either end to trim its duration. Extend it again within its tracked frames and verify the mask returns. Focus a handle and use arrow keys for one-frame changes. Source trim and mask trim must remain independent.
+- Choose **Add mask** at the playhead, select another subject and preview/track it. A second bar must appear without changing the first. Correct a selected mask on the first bad frame and choose **Update tracking from here**. Earlier frames and other masks must remain unchanged. Delete one overlapping mask and verify the other remains. For reappearance after occlusion, add a second mask starting later; there is no split tool.
 - In **Clean frames**, select an accepted frame and increase **Expand mask**. The red boundary must expand immediately and remain after switching frames. This changes only that guide. A pending generated candidate locks expansion until accepted or discarded with X. Generate again to apply changed bounds to a new result.

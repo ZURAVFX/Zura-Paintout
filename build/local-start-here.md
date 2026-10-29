@@ -17,7 +17,7 @@ Start with a subject whose background is visible elsewhere in the shot. Check th
 
 ## Optional: Paintout Studio
 
-Use the **Zura Paintout** button or **Open Zura Paintout** command in ComfyUI. With integrated Zura Nodes, choose **Paintout Studio**. Add footage, select or import a mask, then review its entire selected range. Repair tracking gaps with additional segments or paint/erase corrections.
+Use the **Zura Paintout** button or **Open Zura Paintout** command in ComfyUI. With integrated Zura Nodes, choose **Paintout Studio**. Add footage, select or import a mask, then review its entire selected range. Each completed mask appears as a trimmable timeline bar. Select a bar for corrections, or use Add mask at a later frame for a new segment.
 
 Add clean frames on the timeline. Check mask expansion visually, clean with FLUX or import your own edited frame, then compare and accept. Press X to discard an unaccepted generation while retaining its mask. Render after the masks and guides are clean.
 

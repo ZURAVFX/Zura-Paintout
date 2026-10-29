@@ -46,3 +46,7 @@ Moved selection, paint, erase, pan, undo and clear into a right-aligned viewer h
 ### Guided mask start, 29 October 2026
 
 New targeted footage explicitly opens Mask with the point tool selected after import. Centred the mask preview action, enlarged its target and added a contextual next-step hint; tracking receives primary emphasis once its mask is ready.
+
+### Trimmable mask timeline, 29 October 2026
+
+Completed masks now form independent timeline bars. Drag either end to trim, click to edit, or remove a bar. Add mask starts a separate point selection at the playhead; overlapping masks combine without destructive merging. Trim ranges are reversible within tracked frames, and corrections affect only the selected mask. Existing projects migrate as one Original mask. Draft previews stay out of the output union until tracking completes. Advanced tracking/pass controls are removed from the main panel. No split tool. Restart ComfyUI after updating this development build. Registry 0.1.0 is unchanged.

@@ -4,8 +4,8 @@ const finite=(value,fallback)=>Number.isFinite(Number(value))?Number(value):fall
 
 /** Timeline with distinct seek and clean-frame lanes. Frame labels stay absolute. */
 export class PaintoutTimeline{
-  constructor(container,{onSeek=()=>{},onCreate=()=>{},onSelect=()=>{},onRemove=()=>{},onMaskSelect=()=>{},onTrim=()=>{}}={}){
-    this.container=container;this.callbacks={onSeek,onCreate,onSelect,onRemove,onMaskSelect,onTrim};
+  constructor(container,{onSeek=()=>{},onCreate=()=>{},onSelect=()=>{},onRemove=()=>{},onMaskSelect=()=>{},onTrim=()=>{},onMaskTrim=()=>{},onSegmentSelect=()=>{},onSegmentRemove=()=>{},onAddMask=()=>{}}={}){
+    this.container=container;this.callbacks={onSeek,onCreate,onSelect,onRemove,onMaskSelect,onTrim,onMaskTrim,onSegmentSelect,onSegmentRemove,onAddMask};
     this.state={startFrame:0,frameCount:1,fps:24,playhead:0,anchors:[],selected:-1,busy:false,thumbnail:null,maskRanges:[]};
     this.windowSize=Infinity;this.windowStart=0;this.dragging=false;
     this.root=el('section','zp-editor-timeline');this.root.setAttribute('aria-label','Paintout source timeline');
@@ -13,6 +13,8 @@ export class PaintoutTimeline{
     this.zoomOut=el('button','zp-editor-icon-button','−');this.zoomOut.type='button';this.zoomOut.setAttribute('aria-label','Zoom out timeline');
     this.zoomIn=el('button','zp-editor-icon-button','+');this.zoomIn.type='button';this.zoomIn.setAttribute('aria-label','Zoom in timeline');
     this.zoomValue=el('span','zp-editor-timeline__zoom','100%');this.addFrame=el('button','zp-editor-add-frame');this.addFrame.type='button';this.addFrame.innerHTML=maskIcons['circle-plus']+'<span>Add clean frame</span>';this.addFrame.title='Add a clean frame at the playhead (K)';this.addFrame.onclick=()=>{if(!this.state.busy)this.callbacks.onCreate(this.state.playhead);};this.header.append(this.title,this.addFrame,this.zoomOut,this.zoomValue,this.zoomIn);
+    this.addMask=el('button','zp-editor-add-frame');this.addMask.type='button';this.addMask.innerHTML=maskIcons['circle-plus']+'<span>Add mask</span>';this.addMask.onclick=()=>{if(!this.state.busy)this.callbacks.onAddMask();};this.header.insertBefore(this.addMask,this.addFrame);
+    this.maskLanes=el('div','zp-editor-mask-lanes');this.maskLanes.setAttribute('aria-label','Mask segments. Drag either end to trim.');
     this.lanes=el('div','zp-editor-timeline__lanes');
     this.cleanLane=el('div','zp-editor-timeline__clean-lane');this.cleanLane.setAttribute('role','group');this.cleanLane.setAttribute('aria-label','Clean frame cards. Click an empty position to add a clean frame.');
     this.cleanLabel=el('span','zp-editor-timeline__lane-label','Clean frames');
@@ -35,7 +37,7 @@ export class PaintoutTimeline{
     this.ruler.append(this.trimSelection,this.trimHandles.in,this.trimHandles.out);
     this.ruler.append(this.ticks,this.coverage,this.playheadLine,this.range,this.maskAnchors);
     this.readout=el('div','zp-editor-timeline__readout');this.frameText=el('span','','Frame 0');this.timeText=el('span','','00:00:00:00');this.help=el('span','zp-editor-timeline__hint','Scrub to a frame, then choose Add clean frame · K');
-    this.trimText=el('span','zp-editor-timeline__trim-readout');this.trimText.title='Drag the In and Out handles to trim. Arrow keys adjust a focused handle.';this.readout.append(this.frameText,this.timeText,this.trimText,this.help);this.lanes.append(this.cleanLane,this.ruler,this.readout);this.root.append(this.header,this.lanes);container.append(this.root);
+    this.trimText=el('span','zp-editor-timeline__trim-readout');this.trimText.title='Drag the In and Out handles to trim. Arrow keys adjust a focused handle.';this.readout.append(this.frameText,this.timeText,this.trimText,this.help);this.lanes.append(this.cleanLane,this.ruler,this.maskLanes,this.readout);this.root.append(this.header,this.lanes);container.append(this.root);
     this.range.addEventListener('input',()=>{this.dragging=true;this.seekFromInput(true);});
     this.range.addEventListener('change',()=>{this.dragging=false;this.seekFromInput(false);});
     this.range.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End','PageUp','PageDown'].includes(event.key)){event.stopPropagation();}});
@@ -107,6 +109,35 @@ export class PaintoutTimeline{
     this.maskAnchors.replaceChildren();const seen=new Set();
     for(const range of this.state.maskRanges||[]){const frame=range.metadata?.frame;if(!Number.isInteger(frame)||frame<start||frame>=end||seen.has(frame))continue;seen.add(frame);const marker=el('button','zp-editor-timeline__mask-anchor');marker.type='button';marker.disabled=this.state.busy;marker.style.left=`${this.position(frame)}%`;marker.title=`Mask correction at source frame ${frame}`;marker.setAttribute('aria-label',marker.title);marker.onclick=event=>{event.stopPropagation();this.callbacks.onMaskSelect(frame);};this.maskAnchors.append(marker);}
   }
+  renderMaskBars(){
+    this.maskLanes.replaceChildren();this.addMask.hidden=this.state.stage!=='mask'||!(this.state.maskSegments||[]).some(s=>s.tracked);this.addMask.disabled=this.state.busy||this.state.newMaskPending;
+    this.cleanLane.hidden=this.state.stage==='mask';this.addFrame.hidden=this.state.stage==='mask';
+    if(this.state.stage!=='mask'){this.maskLanes.hidden=true;return;}
+    this.maskLanes.hidden=false;
+    const segments=(this.state.maskSegments||[]).filter(s=>s.tracked);
+    if(!segments.length){this.maskLanes.append(el('p','zp-editor-mask-empty','Completed masks appear here. Drag the ends of a bar to trim its duration.'));return;}
+    for(const segment of segments){
+      const row=el('div','zp-editor-mask-row');const lane=el('div','zp-editor-mask-lane');
+      const bar=el('div','zp-editor-mask-bar');bar.classList.toggle('is-selected',segment.id===this.state.selectedMask);bar.dataset.segment=segment.id;
+      const place=(start,end)=>{bar.style.left=this.position(start)+'%';bar.style.width=Math.max(.5,this.position(end)-this.position(start))+'%';bar.title=`${segment.name}: frames ${start}–${end}. Click to edit; drag the ends to trim.`;};
+      place(segment.start,segment.end);bar.hidden=segment.end<this.visibleStart()||segment.start>=this.visibleEnd();
+      const pick=el('button','zp-editor-mask-bar__select',segment.name);pick.type='button';pick.disabled=this.state.busy;pick.setAttribute('aria-pressed',String(segment.id===this.state.selectedMask));pick.onclick=()=>this.callbacks.onSegmentSelect(segment.id);
+      for(const edge of ['in','out']){
+        const handle=el('button','zp-editor-mask-bar__handle');handle.type='button';handle.disabled=this.state.busy;handle.setAttribute('aria-label',`${segment.name}: trim ${edge==='in'?'start':'end'}`);handle.textContent='';
+        let drag=null;
+        const at=event=>{const rect=lane.getBoundingClientRect();return Math.round(this.visibleStart()+Math.max(0,Math.min(1,(event.clientX-rect.left)/Math.max(1,rect.width)))*(this.visibleEnd()-this.visibleStart()-1));};
+        const range=frame=>edge==='in'?[Math.max(segment.available_start,Math.min(segment.end,frame)),segment.end]:[segment.start,Math.min(segment.available_end,Math.max(segment.start,frame))];
+        handle.onpointerdown=event=>{if(this.state.busy)return;event.preventDefault();event.stopPropagation();drag=[segment.start,segment.end];handle.setPointerCapture(event.pointerId);};
+        handle.onpointermove=event=>{if(!drag)return;event.preventDefault();drag=range(at(event));place(...drag);};
+        handle.onpointerup=event=>{if(!drag)return;event.preventDefault();event.stopPropagation();const value=range(at(event));drag=null;if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);this.callbacks.onMaskTrim(segment.id,...value);};
+        handle.onpointercancel=()=>{drag=null;place(segment.start,segment.end);};
+        handle.onkeydown=event=>{if(this.state.busy||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const current=edge==='in'?segment.start:segment.end;const frame=event.key==='Home'?segment.available_start:event.key==='End'?segment.available_end:current+(event.key==='ArrowLeft'?-1:1)*(event.shiftKey?10:1);this.callbacks.onMaskTrim(segment.id,...range(frame));};
+        bar.append(handle);if(edge==='in')bar.append(pick);
+      }
+      const remove=el('button','zp-editor-mask-remove','×');remove.type='button';remove.disabled=this.state.busy;remove.setAttribute('aria-label',`Remove ${segment.name}`);remove.onclick=()=>this.callbacks.onSegmentRemove(segment.id);
+      lane.append(bar);row.append(lane,remove);this.maskLanes.append(row);
+    }
+  }
   renderCards(){
     this.cards.replaceChildren();const {anchors,selected,thumbnail,busy}=this.state,start=this.visibleStart(),end=this.visibleEnd(),rows=[];let tallest=0;
     anchors.forEach((anchor,index)=>{
@@ -129,7 +160,8 @@ export class PaintoutTimeline{
     this.addFrame.disabled=this.state.busy;
     this.zoomIn.disabled=this.windowSize<=Math.min(32,this.totalFrames)||this.state.busy;this.zoomOut.disabled=this.windowSize>=this.totalFrames||this.state.busy;
     this.range.min=String(this.visibleStart());this.range.max=String(Math.max(this.visibleStart(),this.visibleEnd()-1));if(!this.dragging)this.range.value=String(Math.min(this.state.playhead,this.totalFrames-1));
-    this.renderCards();this.renderTicks();this.updateReadout();this.updatePlayheadLine();
+    this.renderCards();this.renderMaskBars();this.renderTicks();this.updateReadout();this.updatePlayheadLine();
+    if(this.state.stage==='mask')this.help.textContent='Click a mask bar to edit · Drag its ends to trim';
     this.cleanLane.setAttribute('aria-description',`${this.state.anchors.length} clean frames. Click an empty position above the ruler to add one. Press K at the playhead to add one.`);
   }
   dispose(){this.resizeObserver?.disconnect();this.root.remove();}

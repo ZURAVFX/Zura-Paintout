@@ -5,7 +5,7 @@ The main entry is the [ComfyUI workflow](../README.md#run-the-comfy-workflow). T
 After installing the node pack, use **Open Zura Paintout**, the visible **Zura Paintout** button, or `?paintout=1` on your ComfyUI address. The integrated Zura Nodes version is called **Paintout Studio**. Neither route requires a launcher node.
 
 1. Add footage and choose targeted repair.
-2. Use the viewer toolbar to select the subject with points, preview the mask and track it. Alternatively import a matching black-and-white mask video. Scrub to paint or erase corrections. Detailed range, direction and combine controls are under Advanced tracking options; add/repair actions appear after a mask exists.
+2. Use the viewer toolbar to select the subject with points, preview the mask and track it. Alternatively import a matching black-and-white mask video. Scrub to paint or erase corrections. Each completed mask becomes a timeline bar. Click it to edit, drag its ends to trim, or use Add mask for another selection. Overlapping bars combine automatically.
 3. Add clean-frame cards on the timeline. Draw the removal area, include shadows where needed and adjust its hard expansion. Clean with FLUX 3 Klein or import an external edit. Accept only a clean, undistorted guide; X discards an unaccepted candidate when a text field is not focused.
 4. Render through ComfyUI's queue and inspect the output.
 

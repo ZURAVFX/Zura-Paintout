@@ -190,6 +190,21 @@
 .zp-editor-selection-row .zp-editor-tool-help{max-width:65ch;margin:0}
 .zp-editor-selection-row [data-editor=selection]{min-height:44px;min-width:240px;padding:12px 24px;font-size:13px;font-weight:600}
 .zp-editor-selection-cue{max-width:65ch;margin:0;color:var(--gs-muted,#a3a3aa);font-size:12px;line-height:1.5}
+.zp-editor-mask-lanes{padding:8px 0;display:flex;flex-direction:column;gap:6px}
+.zp-editor-mask-lanes[hidden],.zp-editor-timeline__clean-lane[hidden],.zp-editor-add-frame[hidden]{display:none}
+.zp-editor-mask-row{display:flex;align-items:center;gap:8px;margin-left:48px;margin-right:12px;min-width:0}
+.zp-editor-mask-lane{position:relative;flex:1;min-width:0;height:34px;background:var(--zc-canvas,#101013);border-radius:4px}
+.zp-editor-mask-bar{position:absolute;top:0;height:34px;min-width:24px;display:flex;align-items:stretch;background:var(--gs-input,#222228);border:1px solid var(--gs-line,#33333d);border-radius:4px;box-sizing:border-box;overflow:hidden}
+.zp-editor-mask-bar.is-selected{background:var(--zc-selected,#292a21);border-color:var(--gs-accent,#caff00);color:var(--gs-accent,#caff00)}
+.zp-editor-mask-bar button{border:0;background:transparent;color:inherit;min-width:0;padding:0}
+.zp-editor-mask-bar__select{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding-inline:6px!important}
+.zp-editor-mask-bar__handle{flex:0 0 12px;cursor:ew-resize;touch-action:none}
+.zp-editor-mask-bar__handle:after{content:'';display:block;width:2px;height:14px;background:currentColor;opacity:.65;margin:auto}
+.zp-editor-mask-remove{width:28px;height:28px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--gs-muted,#a3a3aa);font-size:18px!important}
+.zp-editor-mask-remove:hover{background:var(--zc-hover,#26262b);color:var(--zc-text,#f2f2f0)}
+.zp-editor-mask-empty{margin:4px 0;text-align:center;color:var(--gs-muted,#a3a3aa);line-height:1.5}
+.zp-editor-tools [data-timeline-only=true]{display:none!important}
+.zp-editor-mask-bar button:focus-visible,.zp-editor-mask-remove:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:-3px}
 @media(max-width:900px){
  .zp-editor-viewer-toolbar [data-tool]>span,.zp-editor-viewer-toolbar [data-editor=undo]>span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
  .zp-editor-viewer-toolbar .zp-editor-tool-group{display:contents}

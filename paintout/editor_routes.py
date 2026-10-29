@@ -186,7 +186,7 @@ def save_painted_frame(body):
     # Zero is a valid edit: erasing the whole mask marks this frame explicitly clear.
     mask = (_decode_paint(body['mask'], width, height) >= .5).astype(np.float32)
     commit_mask_pass(project, source_identity(str(source), description), {frame: mask}, 'replace', int(expected),
-                     metadata={'frame': frame, 'method': 'manual', 'manual_correction': True}, preserve_protection=True)
+                     metadata={'frame': frame, 'method': 'manual', 'manual_correction': True, 'segment_id': body.get('segment_id', '')}, preserve_protection=True)
     return project_response(load_project(project))
 
 
@@ -253,7 +253,7 @@ def import_mask_video(body):
         if source_identity(str(source), describe(str(source))) != identity or source_identity(str(mask), describe(str(mask))) != mask_identity:
             raise ValueError('The footage or mask changed during import. Reload the files before importing again.')
         commit_mask_pass(project, identity, masks, 'replace', int(expected),
-                         metadata={'method': 'import', 'mask_source': str(mask)}, preserve_protection=True)
+                         metadata={'method': 'import', 'mask_source': str(mask), 'segment_id': secrets.token_hex(12), 'tracked': True}, preserve_protection=True)
     return project_response(load_project(project))
 
 
@@ -302,13 +302,26 @@ async def select_mask_candidate(request):
         return web.json_response({'error':str(error)}, status=400)
 
 
+async def segment_range(request):
+    from ..media_source import require_same_origin
+    from .mask_segments import edit_segment
+    require_same_origin(request)
+    try:
+        body = await request.json()
+        return web.json_response(await asyncio.to_thread(edit_segment, body), headers={'Cache-Control': 'no-store'})
+    except RevisionConflict as error:
+        return web.json_response({'error': str(error)}, status=409)
+    except (ValueError, KeyError, TypeError, OSError) as error:
+        return web.json_response({'error': str(error)}, status=400)
+
+
 def register_routes():
     from server import PromptServer
     server = getattr(PromptServer, 'instance', None)
     if server is None:
         return
     existing = {(route.method, route.path) for route in server.routes}
-    for path, handler in (('/zura/paintout/editor/select-mask-candidate', select_mask_candidate), ('/zura/paintout/editor/effective-mask', effective_preview), ('/zura/paintout/editor/import-frame', import_frame), ('/zura/paintout/editor/import-local-frame', import_local_frame), ('/zura/paintout/editor/paint-mask', paint_mask), ('/zura/paintout/editor/import-mask', import_mask)):
+    for path, handler in (('/zura/paintout/editor/segment-range', segment_range), ('/zura/paintout/editor/select-mask-candidate', select_mask_candidate), ('/zura/paintout/editor/effective-mask', effective_preview), ('/zura/paintout/editor/import-frame', import_frame), ('/zura/paintout/editor/import-local-frame', import_local_frame), ('/zura/paintout/editor/paint-mask', paint_mask), ('/zura/paintout/editor/import-mask', import_mask)):
         if ('POST', path) not in existing:
             server.routes.post(path)(handler)
     from . import import_review

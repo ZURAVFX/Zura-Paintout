@@ -17,7 +17,7 @@ For a first test, follow [Start here: local testing](build/local-start-here.md).
 
 ## Run the Comfy workflow
 
-**This is the recommended way to use Zura Paintout.** [Zura Paintout is now listed in Comfy Registry](https://registry.comfy.org/nodes/zura-paintout). Version 0.1.0 has been submitted and is currently marked Pending. The public Registry search is verified; availability in your Manager may take time to refresh.
+**This is the recommended way to use Zura Paintout.** [Zura Paintout is now listed in Comfy Registry](https://registry.comfy.org/nodes/zura-paintout). Version 0.1.0 has been submitted and is currently marked Pending. The public Registry search is verified; availability in your Manager may take time to refresh. The current GitHub development build also contains a [post-Registry RGB video decode fix](build/CHANGES.md#post-registry-development-fixes-29-october-2026).
 
 Once the pack appears in your Manager, setup uses ComfyUI's interface throughout:
 

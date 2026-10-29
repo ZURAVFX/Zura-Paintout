@@ -115,15 +115,22 @@ def frames(d,start,count):
     matrix={'bt2020nc':'bt2020','bt2020c':'bt2020','bt709':'bt709','smpte170m':'bt601'}.get(d.get('matrix'))
     if matrix:
         vf+=f',scale=in_color_matrix={matrix}:in_range={"pc" if d.get("range")=="pc" else "tv"}:out_range=pc'
-    # Preserve encoded RGB values at 16-bit precision; colour conversion follows decoding.
+    # Decode native 8-bit RGB directly. FFmpeg's packed RGB8 -> RGB16 path
+    # scales 255 to about 65280 instead of 65535 on some builds, darkening
+    # otherwise untouched source pixels. YUV and higher-depth sources retain
+    # the 16-bit conversion path so we do not quantize their colour conversion.
+    rgb8=d.get('pixel_format') in ('rgb24','bgr24','rgb0','bgr0','0rgb','0bgr','rgba','bgra','argb','abgr','gbrp','gbrap')
+    raw_format,component_bytes,component_dtype,maximum=('rgb24',1,'u1',255.) if rgb8 else ('rgb48le',2,'<u2',65535.)
+    # Preserve encoded RGB values; colour conversion follows decoding.
     # FFmpeg 7 defaults rawvideo to 25 fps after this filter chain. Keep every
     # decoded source frame, including 59.94 fps footage, rather than drop/duplicate.
-    cmd=[find_media_tool('ffmpeg'),'-v','error','-i',d['path'],'-vf',vf,'-an','-sn','-fps_mode','passthrough','-f','rawvideo','-pix_fmt','rgb48le','-']
+    cmd=[find_media_tool('ffmpeg'),'-v','error','-i',d['path'],'-vf',vf,'-an','-sn','-fps_mode','passthrough','-f','rawvideo','-pix_fmt',raw_format,'-']
     # Windows anonymous pipes throttle large RGB streams. Reuse an uncompressed
     # temporary disk cache instead, while retaining 16-bit decoded RGB precision.
-    size=d['width']*d['height']*6*count
+    frame_bytes=d['width']*d['height']*3*component_bytes
+    size=frame_bytes*count
     cache_dir=Path(tempfile.gettempdir())/'zura_paintout_rgb';cache_dir.mkdir(exist_ok=True)
-    key=hashlib.sha256(('frame-exact-v2|'+str(Path(d['path']).resolve())+str(Path(d['path']).stat().st_mtime_ns)+vf+str(count)).encode()).hexdigest()
+    key=hashlib.sha256(('frame-exact-v3|'+raw_format+'|'+str(Path(d['path']).resolve())+str(Path(d['path']).stat().st_mtime_ns)+vf+str(count)).encode()).hexdigest()
     cached=cache_dir/(key+'.rgb')
     prune_frame_cache(cache_dir, reserve=0 if cached.exists() else min(size, 8*1024**3), keep=cached)
     if size<=8*1024**3 and (cached.exists() or shutil.disk_usage(cache_dir).free>size*1.2):
@@ -132,19 +139,19 @@ def frames(d,start,count):
             try:
                 subprocess.run(cmd[:-1]+[str(part)],check=True,capture_output=True)
                 if part.stat().st_size!=size:
-                    decoded=part.stat().st_size//(d['width']*d['height']*6)
+                    decoded=part.stat().st_size//frame_bytes
                     raise ValueError(f'Decoded {decoded} of {count} requested source frames starting at {start}. Check the footage and selected range.')
                 part.replace(cached)
             finally:
                 part.unlink(missing_ok=True)
-        mapped=np.memmap(cached,dtype='<u2',mode='r',shape=(count,d['height'],d['width'],3))
+        mapped=np.memmap(cached,dtype=component_dtype,mode='r',shape=(count,d['height'],d['width'],3))
         cached.touch()
         try:
-            for a in mapped:yield a.astype(np.float32)/65535.
+            for a in mapped:yield a.astype(np.float32)/maximum
         finally:del mapped
         return
     p=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
-    n=d['width']*d['height']*6
+    n=frame_bytes
     try:
         for _ in range(count):
             b=bytearray()
@@ -152,7 +159,7 @@ def frames(d,start,count):
                 part=p.stdout.read(n-len(b))
                 if not part: raise ValueError('Video ended before requested frame range')
                 b.extend(part)
-            yield np.frombuffer(b,dtype='<u2').reshape(d['height'],d['width'],3).astype(np.float32)/65535.
+            yield np.frombuffer(b,dtype=component_dtype).reshape(d['height'],d['width'],3).astype(np.float32)/maximum
     finally:
         p.stdout.close()
         if p.poll() is None: p.terminate()

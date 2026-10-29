@@ -2,6 +2,11 @@
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 29 October 2026 development fix
+
+- Preserve exact encoded levels when decoding native 8-bit RGB video. FFmpeg RGB8-to-RGB16 conversion on the tested build slightly darkened the source before repair; RGB8 now decodes directly, while YUV and high-bit-depth sources retain the 16-bit path. The raw-frame cache format is versioned to prevent old decoded pixels being reused.
+- Added regression coverage for RGB8 levels, cached and streaming frame reads, trimmed frame order, and sub-8-bit precision in RGB16 footage.
+
 # 1.0.0-rc.1
 
 - Clean-frame Expand mask restores the red overlay on accepted frames, saves guide-only bounds and leaves the shot mask unchanged. Pending generated candidates lock the bounds until accepted or discarded.

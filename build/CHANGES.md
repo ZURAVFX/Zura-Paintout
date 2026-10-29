@@ -17,3 +17,7 @@ Zura Paintout develops the author's existing Zura Nodes paintout workflow. It is
 The integrated public implementation used for this package includes the fixes in Zura Nodes 1.3.34, commit `c5444fe97f50148ad09133ad03c77964c6fa158e`. A source manifest records the actual packaged file hashes.
 
 Representative final demos, independent-machine installation and final artist acceptance remain separate checks. No contest form or social post is submitted by building this package.
+
+## Post-Registry development fixes, 29 October 2026
+
+The current GitHub development build fixes a small brightness shift when decoding native 8-bit RGB video. It decodes these formats directly rather than converting them through FFmpeg's RGB16 path. YUV and higher-depth video retain 16-bit decoding. Cache keys distinguish the new representation. Regression tests cover exact levels, trim order, both cache and pipe reads, and RGB16 precision. Registry 0.1.0 predates this change; no new Registry version is claimed here.

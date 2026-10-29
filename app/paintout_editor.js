@@ -57,7 +57,7 @@ export class PaintoutEditor{
     this.tools=el('section');this.tools.className='zp-editor-tools';this.tools.setAttribute('aria-label','Paintout editing tools');this.timelineHost.after(this.tools);
     this.tools.innerHTML=`<div class="zp-editor-mask-intro"><strong>1. Select what to remove</strong><span>Click the subject or paint the mask yourself. Red is the area to remove.</span><button type="button" data-editor="import-mask">Import mask video</button><span>Custom mask: white removes · black keeps. Match the plate’s size, frame rate and length.</span></div>
       <div class="zp-editor-tool-row"><div class="zp-editor-tool-group" role="group" aria-label="Mask tools"><button type="button" data-tool="include" title="Click on the subject to include it">${maskIcons['circle-plus']}<span>Select subject</span></button><button type="button" data-tool="exclude" title="Click on unwanted areas to exclude them">${maskIcons['circle-minus']}<span>Exclude area</span></button><button type="button" data-tool="brush" title="Draw the removal mask manually">${maskIcons.paintbrush}<span>Paint mask</span></button><button type="button" data-tool="protect" title="Erase from the removal mask">${maskIcons.eraser}<span>Erase mask</span></button><button type="button" data-tool="pan" title="Drag to move the view. Scroll to zoom.">${maskIcons.hand}<span>Pan</span></button></div><button type="button" data-editor="undo">${maskIcons['undo-2']}<span>Undo</span></button><button type="button" data-editor="clear">Clear selection</button></div>
-      <div class="zp-editor-selection-row"><p class="zp-editor-tool-help" data-editor="tool-help"></p><button type="button" data-editor="selection">Preview mask on this frame</button></div>
+      <div class="zp-editor-selection-row"><p class="zp-editor-tool-help" data-editor="tool-help"></p><button type="button" class="zp-editor-primary" data-editor="selection">Preview mask on this frame</button><p class="zp-editor-selection-cue" data-editor="selection-cue"></p></div>
       <div class="zp-editor-tool-row"><label data-editor="brush-control">Brush size <output data-editor="brush-value">32 px</output><input data-editor="brush" type="range" min="1" max="200" value="32" /></label><label title="Expand the hard removal boundary in original plate pixels">Expand mask <output data-editor="grow-value">0 px</output><input data-editor="grow" type="range" min="0" max="100" value="0" /></label><label title="Only changes how the red overlay is displayed, not the mask">Red overlay<input data-editor="opacity" type="range" min="0" max="100" value="45" /></label></div>
       <div class="zp-editor-mask-actions"><div class="zp-editor-track-guide"><strong>2. Track the shot</strong><span data-editor="track-help">Check the red area, then track it through your trimmed shot.</span></div>
         <button type="button" class="zp-editor-primary" data-editor="track">Track mask through shot</button><button type="button" data-editor="continue">Next: clean frames</button>
@@ -325,6 +325,9 @@ export class PaintoutEditor{
     this.$('selection').disabled=busy||(!hasSelection&&!this.manualDirty);
     this.$('selection').textContent=this.tool==='brush'||this.tool==='protect'?'Save mask on this frame':'Preview mask on this frame';
     this.$('track').disabled=busy||!selection.hasMask||this.subjectChanged||this.selectionDirty||!!this.manualSaving;
+    const previewNeeded=this.selectionDirty||!selection.hasMask;
+    this.$('selection').classList.toggle('zp-editor-primary',previewNeeded);
+    this.$('selection-cue').textContent=this.manualSaving?'Saving your mask…':this.manualDirty?'Save this frame before tracking.':previewNeeded?(hasSelection?'Next: preview your selection to see the red removal mask.':'First, click the subject in the viewer. Then preview its mask.'):'Mask ready. Check the red area, then track it through the shot below.';
     const segment=this.maskSegment(),atSeed=segment?.frame===this.w.playhead;
     this.$('segment-draft').hidden=!segment;
     this.$('segment-label').textContent=segment?`${segment.operation==='add'?'Additional mask':'Repair segment'} · selection frame ${segment.frame}`:'';
@@ -335,6 +338,7 @@ export class PaintoutEditor{
     this.updateMaskSegments();
     this.$('track-help').textContent=this.selectionDirty||this.subjectChanged?'Your selection changed. Preview or save this frame before tracking.':selection.hasMask?'Check the red mask, then track it. Scrub the timeline afterwards and fix any missed sections.':'Start by selecting or painting the subject above, then preview the mask.';
     if(this.maskChoices&&!this.subjectChoices.hidden){this.$('track').disabled=true;this.$('track-help').textContent='Choose a subject from the previews above before tracking.';}
+    this.$('track').classList.toggle('zp-editor-primary',!this.$('track').disabled);
     this.$('continue').disabled=busy||!(this.w.state.mask||this.w.state.maskRevision!=null);
 
     for(const b of this.viewerToolbar.querySelectorAll('[data-tool=include],[data-tool=exclude]'))b.hidden=clean;

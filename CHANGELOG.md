@@ -42,3 +42,7 @@ Windows file picking is implemented. Rotated video must be conformed first; impo
 ### Viewer toolbar refinement, 29 October 2026
 
 Moved selection, paint, erase, pan, undo and clear into a right-aligned viewer header, preserving image visibility and narrow-screen access. Removed text subject selection from the Studio interface; point selection, mask preview, manual painting and imported masks remain. Native graph text-selection support is unchanged.
+
+### Guided mask start, 29 October 2026
+
+New targeted footage explicitly opens Mask with the point tool selected after import. Centred the mask preview action, enlarged its target and added a contextual next-step hint; tracking receives primary emphasis once its mask is ready.

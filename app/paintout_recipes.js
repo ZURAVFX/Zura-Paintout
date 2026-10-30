@@ -38,7 +38,7 @@ const absolutePath=value=>typeof value==='string'&&(/^[a-z]:[\\/]/i.test(value)|
 const whole=(value,min,max)=>Number.isInteger(Number(value))&&Number(value)>=min&&Number(value)<=max;
 export const paintoutColourPipeline=c=>c.colourPipeline||(c.processingSpace==='HDR (ACEScct)'?'hdr_hdr':'sdr_sdr');
 const hdrSource=c=>['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(c.sourceColour==='auto'?c.detectedSourceColour:c.sourceColour);
-const normalise=c=>({mode:'targeted',startFrame:0,frameCount:81,sequenceFps:25,sourceColour:'srgb_display',processingSpace:'SDR (sRGB)',width:1152,height:640,outputMode:'SDR video',savePrefix:'paintout/studio',exrPrecision:'float32',keepAudio:true,seed:42,...c});
+const normalise=c=>({mode:'targeted',startFrame:0,frameCount:81,sequenceFps:25,sourceColour:'srgb_display',processingSpace:'SDR (sRGB)',width:1152,height:640,outputMode:'SDR video',savePrefix:'paintout/studio',exrPrecision:'float32',keepAudio:true,seed:42,maskBlockSize:32,...c});
 
 /** Returns an actionable message, or an empty string when ready to queue. */
 export function paintoutValidation(config={}){
@@ -52,6 +52,7 @@ export function paintoutValidation(config={}){
   if(c.resolutionMode==='source'&&![c.sourceWidth,c.sourceHeight].every(n=>whole(n,1,4096)))return 'Load footage up to 4096 pixels per side, or choose a smaller processing resolution.';
   if(![c.width,c.height].every(n=>whole(n,64,4096)&&Number(n)%64===0))return 'Render width and height must use 64-pixel increments, from 64 to 4096 pixels.';
   if(!PAINTOUT_COLOUR_SPACES.includes(c.sourceColour))return 'Choose the actual source colour space.';
+  if(c.maskBlockSize!==0&&!whole(c.maskBlockSize,8,512))return 'Mask block size must be Off or a whole number from 8 to 512 pixels.';
   if(!['SDR (sRGB)','HDR (ACEScct)'].includes(c.processingSpace))return 'Choose SDR or HDR processing.';
   const pipeline=paintoutColourPipeline(c);
   if(!['sdr_sdr','sdr_hdr','hdr_hdr'].includes(pipeline))return 'Choose SDR to SDR, SDR to HDR or HDR to HDR.';
@@ -134,8 +135,8 @@ export function buildPaintoutGraph(config={}){
   node('latent','EmptyLTXVLatentVideo',{width:ref('take',2),height:ref('take',3),length:ref('take',4),batch_size:1});
   if(targeted){
     node('grow_mask','GrowMask',{mask:ref('take',1),expand:32,tapered_corners:true});
-    node('block_mask','BlockifyMask',{masks:ref('grow_mask'),block_size:32,device:'gpu'});
-    node('invert_mask','InvertMask',{mask:ref('block_mask')});
+    if(Number(c.maskBlockSize)>0)node('block_mask','BlockifyMask',{masks:ref('grow_mask'),block_size:Number(c.maskBlockSize),device:'gpu'});
+    node('invert_mask','InvertMask',{mask:ref(Number(c.maskBlockSize)>0?'block_mask':'grow_mask')});
   }
   node('guide','LTXAddVideoICLoRAGuideAdvanced',{
     positive:ref('conditioning'),negative:ref('conditioning',1),vae:ref('float_vae'),latent:ref('latent'),image:ref('take'),
@@ -162,7 +163,7 @@ export function paintoutAvailability(info={},mode='targeted',config={}){
   const expected={UNETLoader:['unet_name',PAINTOUT_MODELS.model],CLIPLoader:['clip_name',PAINTOUT_MODELS.text],[targeted?'LoraLoaderModelOnly':'LTXICLoRALoaderModelOnly']:['lora_name',targeted?PAINTOUT_MODELS.targetedLora:PAINTOUT_MODELS.fullLora]};
   for(const [node,[key,file]] of Object.entries(expected))if(!options(node,key).includes(file))missing.push(file);
   for(const file of [paintoutColourPipeline(config)==='hdr_hdr'?PAINTOUT_MODELS.hdrVideoVae:PAINTOUT_MODELS.videoVae,PAINTOUT_MODELS.audioVae])if(!options('VAELoader','vae_name').includes(file))missing.push(file);
-  const types=['UNETLoader','CLIPLoader','CLIPTextEncode','VAELoader','ZuraPaintoutTake','ZuraPaintoutUncrop','ZuraPaintoutGuideMemory','LTXVVAEForceFloat32','LTXVConditioning','EmptyLTXVLatentVideo','LTXAddVideoICLoRAGuideAdvanced','LTXVEmptyLatentAudio','LTXVConcatAVLatent','KSampler','LTXVSeparateAVLatent','LTXVCropGuides','VAEDecodeTiled',...(targeted?['ZuraPaintoutCrop','ZuraPaintoutAnchors','ZuraPaintoutApplyAnchors','GrowMask','BlockifyMask','InvertMask','LoraLoaderModelOnly']:['ZuraPaintoutFullFrame','LTXICLoRALoaderModelOnly'])];
+  const types=['UNETLoader','CLIPLoader','CLIPTextEncode','VAELoader','ZuraPaintoutTake','ZuraPaintoutUncrop','ZuraPaintoutGuideMemory','LTXVVAEForceFloat32','LTXVConditioning','EmptyLTXVLatentVideo','LTXAddVideoICLoRAGuideAdvanced','LTXVEmptyLatentAudio','LTXVConcatAVLatent','KSampler','LTXVSeparateAVLatent','LTXVCropGuides','VAEDecodeTiled',...(targeted?['ZuraPaintoutCrop','ZuraPaintoutAnchors','ZuraPaintoutApplyAnchors','GrowMask',...(config.maskBlockSize===0?[]:['BlockifyMask']),'InvertMask','LoraLoaderModelOnly']:['ZuraPaintoutFullFrame','LTXICLoRALoaderModelOnly'])];
   for(const node of types)if(!info[node])missing.push(node);
   if(info.KSampler&&!options('KSampler','scheduler').includes('linear_quadratic'))missing.push('LTX linear_quadratic scheduler');
   const guideInputs=info.LTXAddVideoICLoRAGuideAdvanced?.input;

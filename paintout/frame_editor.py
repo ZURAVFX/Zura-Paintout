@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from scipy.ndimage import maximum_filter, distance_transform_edt
+from scipy.ndimage import maximum_filter, distance_transform_edt, binary_fill_holes
 
 from .paintout import (
     COLOUR_SPACES, CATEGORY, composite_crop, describe, frames, is_hdr,
@@ -88,22 +88,69 @@ def plan_crop(mask, grow=0, feather=0, context=128, max_side=1024):
     }
 
 
-def prepare_patch(original, mask, grow=0, feather=0, context=128, max_side=1024):
+def effective_edit_mask(mask, grow=0, feather=0, protection=None):
+    """The visible source-pixel repair boundary, before model transforms."""
+    binary = mask > .001
+    expanded = maximum_filter(binary, size=2*grow+1) if grow else binary
+    alpha = np.clip(1-distance_transform_edt(~expanded)/max(feather, 1), 0, 1) if feather else expanded.astype(np.float32)
+    alpha[expanded] = 1
+    if protection is not None:
+        alpha[np.asarray(protection) > .001] = 0
+    return alpha.astype(np.float32)
+
+
+def erased_reference(image, mask, protection=None):
+    """Hide the selected subject from conditioning, without changing the delivery mask."""
+    pixels = image.detach().cpu().numpy()
+    matte = mask.detach().cpu().numpy()
+    if pixels.ndim != 4 or pixels.shape[0] != 1 or pixels.shape[-1] != 3 or matte.shape != pixels.shape[:3]:
+        raise ValueError('The reconstruction reference must match one RGB crop and its mask.')
+    if not np.isfinite(pixels).all() or not np.isfinite(matte).all():
+        raise ValueError('The reconstruction reference must contain finite pixels.')
+    protected = np.zeros(matte.shape[1:], dtype=bool)
+    if protection is not None:
+        protected_values = np.asarray(protection)
+        if protected_values.shape != protected.shape or not np.isfinite(protected_values).all():
+            raise ValueError('The reference protection must match the crop.')
+        protected = protected_values > .001
+    # Fill accidental interior holes only for model conditioning. Explicitly protected
+    # pixels remain visible, and the original artist mask still controls the composite.
+    filled = binary_fill_holes(matte[0] > .001) & ~protected
+    ring = maximum_filter(filled, size=41) & ~filled & ~protected
+    colour = np.median(pixels[0][ring], axis=0) if ring.any() else np.array([.5, .5, .5])
+    result = pixels.copy()
+    result[0][filled] = colour
+    return torch.from_numpy(result).to(device=image.device, dtype=image.dtype)
+
+
+def prepare_patch(original, mask, grow=0, feather=0, context=128, max_side=1024, protection=None, model_mask=None):
     if original.ndim != 3 or original.shape[-1] != 3 or original.shape[:2] != mask.shape:
         raise ValueError('The edit mask must match the original RGB frame.')
     if not np.isfinite(original).all():
         raise ValueError('The original frame contains non-finite pixels.')
     transform = plan_crop(mask, grow, feather, context, max_side)
+    if protection is not None and (protection.shape != mask.shape or not np.isfinite(protection).all()):
+        raise ValueError('The protection mask must match the finite edit mask.')
+    if model_mask is None:
+        model_mask = effective_edit_mask(mask, grow, feather, protection)
+    elif model_mask.shape != mask.shape or not np.isfinite(model_mask).all():
+        raise ValueError('The model selection mask must match the finite edit mask.')
     x, y, width, height = transform['rect']
     rh, rw = transform['resized']
     ph, pw = transform['padded']
     image = torch.from_numpy(original[y:y+height, x:x+width].copy())[None].float()
-    matte = torch.from_numpy(mask[y:y+height, x:x+width].copy())[None, :, :, None].float()
+    matte = torch.from_numpy(model_mask[y:y+height, x:x+width].copy())[None, :, :, None].float()
     image = resize(image, rh, rw)
     matte = resize(matte, rh, rw, 'nearest-exact')
     image = F.pad(image.movedim(-1, 1), (0, pw-rw, 0, ph-rh), mode='replicate').movedim(1, -1)
     matte = F.pad(matte.movedim(-1, 1), (0, pw-rw, 0, ph-rh)).squeeze(1)
     patch = {**transform, 'original': original.copy(), 'mask': mask.copy()}
+    if protection is not None:
+        patch['protection'] = protection
+        protected = torch.from_numpy(protection[y:y+height, x:x+width].copy())[None, :, :, None].float()
+        protected = resize(protected, rh, rw, 'nearest-exact')
+        protected = F.pad(protected.movedim(-1, 1), (0, pw-rw, 0, ph-rh)).squeeze(1)
+        patch['model_protection'] = protected[0].numpy()
     return image, matte, patch
 
 
@@ -163,8 +210,12 @@ def prepare_plate_patch(original, mask, grow=0, feather=0, context=128, max_side
     image = resize(torch.from_numpy(original)[None], ph, pw)[0].numpy()
     matte = resize(torch.from_numpy(mask)[None,:,:,None], ph, pw, 'nearest-exact')[0,:,:,0].numpy()
     protected = None if protection is None else resize(torch.from_numpy(protection)[None,:,:,None],ph,pw,'nearest-exact')[0,:,:,0].numpy()
+    # Grow once in original plate pixels, exactly like the visible overlay and
+    # final delivery boundary, then carry it through the video's shared grid.
+    effective = effective_edit_mask(mask, grow, feather, protection)
+    model_mask = resize(torch.from_numpy(effective)[None,:,:,None],ph,pw,'nearest-exact')[0,:,:,0].numpy()
     scale=max(pw/width,ph/height)
-    crop,crop_mask,patch=prepare_patch(image,matte,math.ceil(grow*scale),math.ceil(feather*scale),math.ceil(context*scale),max_side)
+    crop,crop_mask,patch=prepare_patch(image,matte,math.ceil(grow*scale),math.ceil(feather*scale),math.ceil(context*scale),max_side,protection=protected,model_mask=model_mask)
     patch.update(protection=protected,delivery_original=original.copy(),delivery_mask=mask.copy(),
                  delivery_protection=protection,delivery_grow=grow,delivery_feather=feather,
                  plate_processing_size=[pw,ph])
@@ -208,8 +259,8 @@ class ZuraPaintoutFrameCrop:
             'mask_revision': ('INT', {'default': -1, 'min': -1, 'max': 1000000}),
         }}
 
-    RETURN_TYPES = ('IMAGE', 'MASK', 'ZURA_FRAME_PATCH', 'INT', 'INT', 'IMAGE')
-    RETURN_NAMES = ('context_image', 'edit_mask', 'patch', 'width', 'height', 'selection_preview')
+    RETURN_TYPES = ('IMAGE', 'MASK', 'ZURA_FRAME_PATCH', 'INT', 'INT', 'IMAGE', 'IMAGE')
+    RETURN_NAMES = ('context_image', 'edit_mask', 'patch', 'width', 'height', 'selection_preview', 'erased_reference')
     FUNCTION = 'prepare'
     CATEGORY = CATEGORY
 
@@ -255,7 +306,7 @@ class ZuraPaintoutFrameCrop:
         coverage = crop_mask[..., None] * .45
         colour = torch.tensor([1., .05, .05], dtype=selection.dtype)
         selection = selection * (1-coverage) + colour * coverage
-        return image, crop_mask, patch, image.shape[2], image.shape[1], selection
+        return image, crop_mask, patch, image.shape[2], image.shape[1], selection, erased_reference(image, crop_mask, patch.get('model_protection'))
 
 
 class ZuraPaintoutFrameComposite:

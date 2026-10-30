@@ -21,4 +21,4 @@ After adding the files, refresh ComfyUI's model list or restart it. Exact filena
 
 MODEL_SOURCES.json records the observed repository revisions and revision-specific download URLs. This records source locations, not a verification that every local test weight matches that revision. No general open-weights-only eligibility claim is made.
 
-Clean frames use the original crop, a red selection reference and the artist's instruction directly. The separate vision-caption pass and its 9B prompt upsampler are no longer required.
+Clean frames use one crop with the selected object erased and the artist's instruction directly. This avoids feeding the unwanted object back as a strong reference. The final composite preserves the source outside the effective painted mask. The separate vision-caption pass and its 9B prompt upsampler are no longer required.

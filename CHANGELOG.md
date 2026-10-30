@@ -2,6 +2,12 @@
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 30 October 2026 clean-frame removal fix
+
+- FLUX receives a single reference with the painted target erased, so the unwanted object is no longer reinforced by original and red-overlay references. The artist's instruction controls reconstruction. A controlled test removes the actual failed silver car; unseen background still requires artist review.
+- Model-facing selection now follows mask expansion in original plate pixels, including protected areas. Final compositing keeps the original effective boundary without applying growth twice.
+- Render settings expose mask block size, including Off. This changes LTX guidance, not the final repair boundary.
+
 # 29 October 2026 development fix
 
 - Preserve exact encoded levels when decoding native 8-bit RGB video. FFmpeg RGB8-to-RGB16 conversion on the tested build slightly darkened the source before repair; RGB8 now decodes directly, while YUV and high-bit-depth sources retain the 16-bit path. The raw-frame cache format is versioned to prevent old decoded pixels being reused.

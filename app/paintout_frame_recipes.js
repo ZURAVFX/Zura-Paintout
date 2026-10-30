@@ -19,12 +19,13 @@ export function frameEditAvailability(info = {}) {
     vae: matchFile(choices(info, 'VAELoader', 'vae_name'), FRAME_EDIT_MODELS.vae),
   };
   const missing = requiredNodes.filter(name => !info[name]);
+  if (Array.isArray(info.ZuraPaintoutFrameCrop?.output) && info.ZuraPaintoutFrameCrop.output.length < 7) missing.push('Restart ComfyUI to load the updated frame-removal backend');
   for (const [key, file] of Object.entries(files)) if (!file) missing.push(FRAME_EDIT_MODELS[key]);
   if (info.CLIPLoader && !choices(info, 'CLIPLoader', 'type').includes('flux3')) missing.push('Current ComfyUI FLUX 3 text encoder support');
   return {ready: !missing.length, missing: [...new Set(missing)], files};
 }
 
-const selectionInstruction = 'Image 1 is the unmarked original source crop and is the image to edit. Image 2 is the same crop with a translucent red selection marking the exact area to remove. The red overlay is an editing annotation, not real scene content. Remove the object and details covered by the selection, reconstructing the existing background naturally with matching perspective, lighting, shadows and texture. Use image 1 for the original colours and appearance. Do not copy the red overlay into the result. Keep the camera, composition and all unselected content unchanged.';
+const selectionInstruction = 'Reconstruct the flat gray filled area as a natural continuation of the empty background. Continue the existing surface texture, lines, perspective and lighting across it. The filled area must contain only empty ground and background. Do not add a vehicle or object. Keep the rest of the image unchanged.';
 
 export function buildFrameEditGraph(config, info) {
   const available = frameEditAvailability(info);
@@ -49,8 +50,8 @@ export function buildFrameEditGraph(config, info) {
   node('frame_negative', 'CLIPTextEncode', {clip: ref('frame_text'), text: ''}, 'Preparing frame conditioning');
   node('frame_reference', 'ReferenceMultiLatent', {
     positive: ref('frame_positive'), negative: ref('frame_negative'), vae: ref('frame_vae'),
-    resolution: 'keep resolution', 'images.image0': ref('frame_crop'), 'images.image1': ref('frame_crop', 5),
-  }, 'Encoding the source and painted selection');
+    resolution: 'keep resolution', 'images.image0': ref('frame_crop', 6),
+  }, 'Encoding the background reconstruction reference');
   node('frame_sample', 'KSampler', {
     model: ref('frame_model'), positive: ref('frame_reference'), negative: ref('frame_reference', 1),
     latent_image: ref('frame_reference', 2), seed, steps: 16, cfg: 1,

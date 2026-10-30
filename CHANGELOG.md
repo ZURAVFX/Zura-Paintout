@@ -1,3 +1,7 @@
+# 0.1.2: installed VAE compatibility
+
+Recognises the authentic FLUX.2-dev VAE variant after full upstream hash verification, without replacing working models. Includes current local setup guidance.
+
 # 0.1.1: local setup and repair testing update
 
 Adds guided model downloads, layered clean-frame controls, mask timeline improvements and staged HDR conversion. This remains a testing release; Registry review and artist acceptance are separate gates.
@@ -8,6 +12,7 @@ Adds Registry metadata and automatic Python dependency declarations, native Temp
 
 # 30 October 2026 model setup in Paintout
 
+- Recognise the authentic FLUX.2-dev VAE variant already used by some Klein installations. Its different file size is accepted only after a full match against the pinned upstream SHA-256; verification is cached. The default download is unchanged.
 - Models opens a guided setup panel for masking, FLUX clean frames, LTX repair and HDR conversion. Download missing models installs the pinned files into ComfyUI, reuses valid existing files and shared dependencies, and shows byte progress, cancellation and retry.
 - Restricted Hugging Face files show their licence/access links and an optional read-token field. Paintout does not store that token. Missing custom-node code has separate ComfyUI Manager guidance.
 - Workflow model selection recognises installed subfolders. New downloads are verified before installation and never overwrite existing final files.

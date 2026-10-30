@@ -4,7 +4,7 @@ Zura Paintout runs in your existing ComfyUI installation. No Comfy account, API 
 
 ## Install once
 
-1. In ComfyUI Manager / Extensions, search for **Zura Paintout**, install and restart. The [Registry listing](https://registry.comfy.org/nodes/zura-paintout) exists; search availability can lag. See the [README](../README.md#run-the-comfy-workflow) for the current fallback.
+1. The [Registry listing](https://registry.comfy.org/nodes/zura-paintout) has 0.1.2 Pending review; Manager installation is not yet verified. Use Manager's **Install via Git URL** for `https://github.com/ZURAVFX/Zura-Paintout` if available under your existing settings, then restart. See [setup without a terminal](no-terminal-setup.md) for the current installation route and fallback.
 2. Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through Manager.
 3. Follow [model files](model-files.md) and [setup without a terminal](no-terminal-setup.md). The native render workflow needs LTX and its repair adapter. SAM and FLUX are optional preparation models.
 4. If you already have Zura Nodes enabled, use its Paintout Studio and these workflows there. Do not enable both packs together.

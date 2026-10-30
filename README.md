@@ -17,7 +17,7 @@ For a first test, follow [Start here: local testing](build/local-start-here.md).
 
 ## Run the Comfy workflow
 
-**This is the recommended way to use Zura Paintout.** The [Registry listing](https://registry.comfy.org/nodes/zura-paintout) exists, but its old 0.1.0 archive is currently marked Flagged by Registry review. The public response does not provide a reason. Use the current GitHub build for the model setup panel and latest fixes; Manager installation of a reviewed Registry update is still being verified.
+**This is the recommended way to use Zura Paintout.** The [Registry listing](https://registry.comfy.org/nodes/zura-paintout) now has version **0.1.2**, including the model setup panel and latest repair fixes. Its archive matches the tested package and Registry review is **Pending**. Manager installation is not yet verified. The older 0.1.0 is Flagged, with no reason in the public response. Use the current GitHub build while review is unresolved.
 
 Once the pack appears in your Manager, setup uses ComfyUI's interface throughout:
 

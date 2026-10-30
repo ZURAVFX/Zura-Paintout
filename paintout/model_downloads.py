@@ -7,6 +7,7 @@ offline. Existing model readiness is a size/header check, not a full hash scan.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from functools import lru_cache
 import errno
 import hashlib
 import json
@@ -249,6 +250,11 @@ CATALOG = {'targeted': {'name': 'Targeted video repair',
                       'remote_path': 'split_files/vae/flux2-vae.safetensors',
                       'size_bytes': 336211292,
                       'sha256': '868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3',
+                      'existing_variants': [{'repo': 'Comfy-Org/flux2-dev',
+                                             'revision': '9630c1b4b6e690497ae0c19bb6b1b35d4ebedcb7',
+                                             'remote_path': 'split_files/vae/flux2-vae.safetensors',
+                                             'size_bytes': 336213556,
+                                             'sha256': 'd64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5'}],
                       'gated': False,
                       'model_card': 'https://huggingface.co/Comfy-Org/flux2-klein-9B'}],
            'note': 'Needed for Clean with FLUX 3. You can import manually edited frames instead.',
@@ -309,6 +315,13 @@ def _safe_item(item):
         raise ValueError('Invalid model catalogue source.')
     if type(item.get('size_bytes')) is not int or item['size_bytes'] < 16 or not re.fullmatch(r'[0-9a-f]{64}', item.get('sha256', '')):
         raise ValueError('Invalid model integrity metadata.')
+    variants = item.get('existing_variants', [])
+    if not isinstance(variants, list):
+        raise ValueError('Invalid existing model variants.')
+    for variant in variants:
+        if not isinstance(variant, dict):
+            raise ValueError('Invalid existing model variant.')
+        _safe_item({**item, **variant, 'existing_variants': []})
     return item
 
 
@@ -345,6 +358,23 @@ def safetensors_header(path, size):
         cursor = end
     if not spans or cursor != size - length - 8:
         raise DownloadError('This file has incomplete model data.')
+
+
+@lru_cache(maxsize=128)
+def _existing_sha256(path, size, modified_ns, changed_ns, inode):
+    """Hash narrow alternate layouts once per file identity, never every poll.
+
+    Comfy supports the original FLUX VAE and its published diffusers key layout.
+    An alternate size alone is insufficient; its full published hash must match.
+    """
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as source:
+        while chunk := source.read(1024 * 1024):
+            digest.update(chunk)
+    current = Path(path).stat()
+    if (current.st_size, current.st_mtime_ns, current.st_ctime_ns, current.st_ino) != (size, modified_ns, changed_ns, inode):
+        raise DownloadError('The existing model changed while it was being checked. Refresh and retry.')
+    return digest.hexdigest()
 
 
 def _candidate_index(locations, filenames=None):
@@ -394,11 +424,13 @@ def inspect(model_id, locations, index=None, checked=None):
         usable = None
         for candidate in candidates:
             stat = candidate.stat()
-            key = (str(candidate), stat.st_size, stat.st_mtime_ns)
+            key = (str(candidate), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
             if key not in checked:
                 try:
                     if stat.st_size != item['size_bytes']:
-                        raise DownloadError('Wrong size.')
+                        variants = [variant for variant in item.get('existing_variants', []) if variant['size_bytes'] == stat.st_size]
+                        if not variants or _existing_sha256(*key) not in {variant['sha256'] for variant in variants}:
+                            raise DownloadError('Wrong size or unrecognised existing variant.')
                     safetensors_header(candidate, stat.st_size)
                     checked[key] = True
                 except (DownloadError, OSError):
@@ -423,7 +455,7 @@ def inspect(model_id, locations, index=None, checked=None):
 
 
 def _public_recipe(recipe):
-    return {**recipe, 'files': [{key: value for key, value in item.items() if key not in {'destination', 'destination_root', 'repo', 'revision', 'remote_path'}} for item in recipe['files']]}
+    return {**recipe, 'files': [{key: value for key, value in item.items() if key not in {'destination', 'destination_root', 'repo', 'revision', 'remote_path', 'existing_variants'}} for item in recipe['files']]}
 
 
 def _rename_noreplace(source, destination):

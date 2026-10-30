@@ -1,3 +1,8 @@
+# 30 October 2026 navigation clarity
+
+- Next: clean frames and Next: render now appear beside the instructions above the viewer, with blue buttons and a directional icon. Generation actions remain lime. Existing stage and busy-state checks are preserved.
+- The output summary and Generate action use a wrapping layout with explicit spacing, stacking on narrow screens. Verified in both Studio mounts, dark and light themes, at desktop and narrow widths.
+
 # Foundation and contest work
 
 Zura Paintout develops the author's existing Zura Nodes paintout workflow. It is not a claim that the full Zura Studio product, model architectures or third-party adapters were created during this contest.
@@ -29,3 +34,9 @@ Studio now saves the SDR repair before offering **Convert repaired clip to HDR**
 Streaming TiledFusion keeps the original output raster, frame rate and selected frame count. The 121-source-frame cap remains. The 40-million pixel-frame guide-encoding guard now applies per 9- or 17-frame window; a separate 8 GiB guard bounds the CPU guide allocation. No automatic smaller processing proxy is used. This streaming route has not yet passed a GPU render test.
 
 Generated clean-frame results are used automatically as paint layers. Individual deletion removes one edit; **Remove all paint layers** restores the original frame. Named-target FLUX instructions use the original crop reference, while generic painted-area cleanup uses an erased reference. The controlled car test is not a promise of arbitrary-shot removal quality.
+
+## Paint-layer retry and blending, 30 October 2026
+
+Deleting a layer restores its effective hard mask at zero growth for another attempt, including the last layer. **Remove all paint layers** restores the original and clears the paint mask. Per-layer **Blend edge** runs from 0 to 100 px; releasing it recomposes the preview without another FLUX run. Softening stays inside the mask and preserves outside and protected pixels in SDR/HDR.
+
+Default FLUX context is now 256 source pixels, previously 128; the 1024 maximum model side and final repair bounds are unchanged. The instruction starts as **Remove the foreground object** and the last artist-entered prompt persists across frames, layers, new footage and reload until **Start over**. Generation guidance shows Prepare, Generate and Save with a next action. Structural and pixel tests cover these behaviours; improved model quality has not been demonstrated.

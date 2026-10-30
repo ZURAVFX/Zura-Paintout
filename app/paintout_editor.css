@@ -268,9 +268,25 @@
 .zp-editor-paint-layers button{flex:none;min-height:36px;padding:6px 10px;border:1px solid var(--gs-line,#33333d);border-radius:5px;background:var(--gs-panel,#19191e);color:inherit;font:inherit;cursor:pointer}
 .zp-editor-paint-layers button:hover{background:var(--gs-line,#33333d)}.zp-editor-paint-layers button:disabled{opacity:.45;cursor:default}
 .zp-editor-paint-layers button:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:2px}
+.zp-editor-layer-blend{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:11px;max-width:330px}
+.zp-editor-layer-blend input{min-width:70px;width:150px;flex:1;accent-color:var(--gs-accent,#caff00)}
+.zp-editor-layer-blend output{min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:500px){.zp-editor-paint-layers li{gap:8px}.zp-editor-paint-layers li img{width:48px;height:30px}}
 
 /* One Lucide family, with compact glyphs inside comfortable hit targets. */
 .zp-editor-labelled-icon{display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .zp-editor-labelled-icon svg,.zp-editor-icon-button svg,.zp-editor-mask-remove svg,.zp-editor-frame-card__remove svg{width:16px;height:16px;flex:none;pointer-events:none}
 @media(pointer:coarse){.zp-editor-icon-button,.zp-editor-mask-remove,.zp-editor-frame-card__remove{min-width:40px;min-height:40px}}
+
+.zp-editor-mask-flow>[data-editor=job]>[data-editor=job-steps]{grid-column:1/-1;grid-row:3;width:100%}
+
+/* Navigation is blue; model actions retain the studio lime. */
+.zp-editor-guide{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:24px;align-items:center;padding:12px 0 8px}
+.zp-editor-guide>strong,.zp-editor-guide>span{grid-column:1}
+.zp-editor-guide-actions{grid-column:2;grid-row:1/span 2;display:flex;align-items:center}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:44px;padding:11px 16px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;white-space:nowrap;cursor:pointer}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next:hover:not(:disabled){background:#1d4ed8}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next:disabled{background:var(--gs-input,#222228);color:var(--gs-muted,#a3a3aa);cursor:default;opacity:1}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next[hidden]{display:none}
+@media(max-width:700px){.zp-editor-guide{grid-template-columns:minmax(0,1fr);gap:6px}.zp-editor-guide-actions{grid-column:1;grid-row:auto;margin-top:6px;justify-content:flex-end}.zp-editor-guide .zp-editor-next{width:100%}}

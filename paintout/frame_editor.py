@@ -257,7 +257,7 @@ class ZuraPaintoutFrameCrop:
             'mask': ('STRING', {'default': '', 'multiline': True}),
             'grow': ('INT', {'default': 0, 'min': 0, 'max': 256}),
             'feather': ('INT', {'default': 0, 'min': 0, 'max': 256}),
-            'context': ('INT', {'default': 128, 'min': 0, 'max': 2048}),
+            'context': ('INT', {'default': 256, 'min': 0, 'max': 2048}),
             'max_side': ('INT', {'default': 1024, 'min': 64, 'max': 2048}),
         }, 'optional': {
             'base_file': ('STRING', {'default': ''}),

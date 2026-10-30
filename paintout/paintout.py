@@ -34,6 +34,16 @@ def frame_progress(total):
         return ProgressBar(total).update_absolute
     except ImportError:
         return lambda value: None  # CPU-only tools can also use the frame helpers.
+
+def grow_frame_masks(mask, grow):
+    """Exact square dilation without a quadratic CPU pooling kernel per pixel."""
+    if not grow:
+        return mask
+    # A size-one frame axis keeps each frame independent. SciPy implements the
+    # spatial maximum as separable sliding windows, unlike CPU max_pool2d.
+    values=mask.detach().cpu().numpy()
+    expanded=maximum_filter(values,size=(1,2*grow+1,2*grow+1),mode='constant',cval=-np.inf)
+    return torch.from_numpy(expanded).to(device=mask.device,dtype=mask.dtype)
 def natural(p): return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', str(p))]
 def read_image(path):
     import OpenImageIO as oiio
@@ -396,7 +406,7 @@ class ZuraPaintoutCrop:
         image=torch.cat(ims);mask=torch.cat(ms)
         # Grow the conditioning mask at inference scale; final matte is built in original pixels.
         grow=math.ceil(repair_grow*scale)
-        if grow:mask=F.max_pool2d(mask[:,None],2*grow+1,1,grow)[:,0]
+        if grow:mask=grow_frame_masks(mask,grow)
         if m.get('protection_files'):
             for index in range(frame_count):
                 protected=crop_work(protection_mask(m,start_frame+index),c,colour_space,True)[0,...,0]

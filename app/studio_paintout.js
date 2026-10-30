@@ -1,3 +1,4 @@
+import {updateGenerationSteps} from './paintout_generation_steps.js';
 import {buildPaintoutGraph,buildPaintoutRepairGraph,buildPaintoutHDRGraph,paintoutValidation,paintoutAvailability,PAINTOUT_DEFAULT_PROMPTS,PAINTOUT_OUTPUT_MODES,PAINTOUT_SIZE_PRESETS,paintoutPresetSize,paintoutRangeFix,paintoutColourPipeline} from './paintout_recipes.js';
 
 import {composerIcons as icons} from './studio_composer.js';
@@ -11,6 +12,7 @@ import {ShotComparison} from './studio_compare.js';
 import {tidyArtistGraph} from './artist_graph.js';
 
 import {PaintoutEditor,paintoutDraft} from './paintout_editor.js';
+import {DEFAULT_FRAME_EDIT_PROMPT} from './paintout_frame_recipes.js';
 
 const KEY='zura-paintout-workspace-v1';
 
@@ -36,7 +38,7 @@ export class PaintoutWorkspace{
 
     this.state=paintoutDraft(saved.draft);
 
-    this.state.anchors=Array.isArray(this.state.anchors)?this.state.anchors:[];this.prompts=saved.prompts||{};this.sourceInfo=saved.sourceInfo||null;this.maskInfo=saved.maskInfo||null;this.job=saved.job||null;this.pendingHDR=saved.pendingHDR||(this.job?.phase==='hdr'&&this.job.savedSequence?{config:this.job.config,savedSequence:this.job.savedSequence}:null);this.items=Array.isArray(saved.items)?saved.items.slice(0,12):[];this.playhead=Number.isInteger(this.state.editorPlayhead)?Math.max(0,Math.min((this.sourceInfo?.frames||100001)-1,this.state.editorPlayhead)):this.state.startFrame;this.selected=Number.isInteger(this.state.editorSelected)&&this.state.anchors[this.state.editorSelected]?this.state.editorSelected:-1;this.view='source';this.result=saved.result||this.items.find(item=>item.config?.source===this.state.source)||null;
+    this.state.anchors=Array.isArray(this.state.anchors)?this.state.anchors:[];this.prompts=saved.prompts||{};this.sourceInfo=saved.sourceInfo||null;this.maskInfo=saved.maskInfo||null;this.job=saved.job||null;this.pendingHDR=saved.pendingHDR||(this.job?.phase==='hdr'&&this.job.savedSequence?{config:this.job.config,savedSequence:this.job.savedSequence}:null);this.items=Array.isArray(saved.items)?saved.items.slice(0,12):[];this.playhead=Number.isInteger(this.state.editorPlayhead)?Math.max(0,Math.min((this.sourceInfo?.frames||100001)-1,this.state.editorPlayhead)):this.state.startFrame;this.selected=Number.isInteger(this.state.editorSelected)&&this.state.anchors[this.state.editorSelected]?this.state.editorSelected:-1;this.cleanupPrompt=typeof saved.cleanupPrompt==='string'?saved.cleanupPrompt:this.state.anchors[this.selected]?.editPrompt||DEFAULT_FRAME_EDIT_PROMPT;this.view='source';this.result=saved.result||this.items.find(item=>item.config?.source===this.state.source)||null;
 
     this.page=document.createElement('section');this.page.className='zf-page zp-page';
 
@@ -50,7 +52,7 @@ export class PaintoutWorkspace{
 
         <div id="zps-image-slot" hidden></div><video id="zps-video" controls playsinline hidden></video><div id="zps-comparison" hidden></div>
 
-        <div id="zps-progress" hidden><strong id="zps-progress-title" role="status" aria-live="polite">Queued</strong><button type="button" id="zps-cancel">Cancel run</button><progress id="zps-bar" max="100" aria-label="Paintout progress"></progress><span id="zps-progress-detail"></span></div>
+        <div id="zps-progress" hidden><strong id="zps-progress-title" role="status" aria-live="polite">Queued</strong><button type="button" id="zps-cancel">Cancel run</button><progress id="zps-bar" max="100" aria-label="Paintout progress"></progress><span id="zps-progress-detail"></span><div id="zps-generation-steps"></div></div>
 
         <p id="zps-result-status" role="status" hidden></p><p id="zps-message" role="status" hidden></p>
 
@@ -182,7 +184,7 @@ export class PaintoutWorkspace{
 
     this.api.addEventListener?.('progress',e=>this.updateProgress(e.detail));
 
-    this.api.addEventListener?.('executing',e=>{const d=e.detail;if(!this.job||d?.prompt_id!==this.job.id||!d.node)return;this.job.currentNode=d.node;this.sampleStarted=null;this.progressSnapshot=null;this.$('bar').removeAttribute('value');this.$('progress-title').textContent=this.job.stages?.[d.node]||'Processing paintout';this.$('progress-detail').textContent=this.elapsed();this.save();});
+    this.api.addEventListener?.('executing',e=>{const d=e.detail;if(!this.job||d?.prompt_id!==this.job.id||!d.node)return;this.job.currentNode=d.node;this.sampleStarted=null;this.progressSnapshot=null;this.$('bar').removeAttribute('value');this.$('progress-title').textContent=this.job.stages?.[d.node]||'Processing paintout';this.$('progress-detail').textContent=this.elapsed();this.updateGenerationGuide();this.save();});
 
     for(const type of ['execution_success','execution_error','execution_interrupted'])this.api.addEventListener?.(type,e=>{if(e.detail?.prompt_id===this.job?.id)this.poll();});
 
@@ -234,7 +236,7 @@ export class PaintoutWorkspace{
 
   applySize(){const mode=this.state.resolutionMode;if(mode==='default'){this.state.width=1152;this.state.height=640;}else if(PAINTOUT_SIZE_PRESETS.some(p=>p[0]===mode))Object.assign(this.state,paintoutPresetSize(mode,this.state.megapixels));this.$('width').value=this.state.width;this.$('height').value=this.state.height;}
 
-  save(){this.editor?.saveSoon();try{localStorage.setItem(KEY,JSON.stringify({draft:this.state,prompts:this.prompts,sourceInfo:this.sourceInfo,maskInfo:this.maskInfo,job:this.job,pendingHDR:this.pendingHDR,items:this.items,result:this.result}));}catch{this.message('Browser storage is full. Your output files remain on disk.');}}
+  save(){this.editor?.saveSoon();try{localStorage.setItem(KEY,JSON.stringify({draft:this.state,prompts:this.prompts,sourceInfo:this.sourceInfo,maskInfo:this.maskInfo,job:this.job,pendingHDR:this.pendingHDR,cleanupPrompt:this.cleanupPrompt,items:this.items,result:this.result}));}catch{this.message('Browser storage is full. Your output files remain on disk.');}}
 
   changed(){this.message('');this.save();this.render();}
 
@@ -290,7 +292,7 @@ export class PaintoutWorkspace{
 
   async resetSource(){if(this.busy())return false;try{await this.editor?.flushManual();await this.editor?.persist();}catch(e){this.message(e.message);return false;}this.state.source='';this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.mask='';this.state.anchors=[];this.sourceInfo=this.maskInfo=null;this.pendingHDR=null;this.selected=-1;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.renderAnchors();this.changed();this.preview('source');return true;}
 
-  async reset(){if(this.busy())return;if(!await this.resetSource())return;this.items=[];this.state.startFrame=0;this.state.frameCount=81;this.playhead=0;this.$('start').value=0;this.$('count').value=81;this.save();this.render();}
+  async reset(){if(this.busy())return;if(!await this.resetSource())return;this.items=[];this.cleanupPrompt=DEFAULT_FRAME_EDIT_PROMPT;if(this.editor)this.editor.$('instruction').value=this.cleanupPrompt;this.state.startFrame=0;this.state.frameCount=81;this.playhead=0;this.$('start').value=0;this.$('count').value=81;this.save();this.render();}
 
   setMode(mode){if(this.busy()||!['targeted','full'].includes(mode))return;this.prompts[this.state.mode]=this.$('prompt').value;this.state.mode=mode;this.$('prompt').value=this.prompts[mode]||PAINTOUT_DEFAULT_PROMPTS[mode];this.changed();if(mode==='full'&&['mask','anchor'].includes(this.view))this.preview('source');}
 
@@ -453,7 +455,7 @@ export class PaintoutWorkspace{
 
     this.$('result-status').hidden=this.view!=='result'||!this.result||!!this.job||this.submitting;if(this.result)this.$('result-status').textContent=`Ready · ${this.result.config.frameCount} frames · Your finished clean plate is ready to play`;
 
-    this.$('export').disabled=busy;this.$('progress').hidden=!this.job&&!this.submitting;this.$('cancel').disabled=!this.job;
+    this.$('export').disabled=busy;this.$('progress').hidden=!this.job&&!this.submitting;this.$('cancel').disabled=!this.job;this.updateGenerationGuide();
 
     this.$('hdr-stage').hidden=!this.pendingHDR;this.$('convert-hdr').disabled=busy;this.$('convert-hdr').textContent=this.pendingHDR?.failed?'Retry HDR conversion':'Convert repaired clip to HDR';this.$('hdr-stage-note').textContent=(this.pendingHDR?name(this.pendingHDR.config?.source)+' · '+this.pendingHDR.config?.frameCount+' frames. ':'')+(this.pendingHDR?.failed?'HDR conversion stopped. The repaired clip is safe. Retry HDR without repeating the repair.':'Next: convert the repaired clip to HDR. The repair is saved, so this step can be retried separately.');
     this.$('generate').disabled=busy;this.$('generate').setAttribute('aria-describedby','zps-note');this.$('generate').textContent=this.job?'Generating…':this.submitting?'Submitting…':error&&/mask section|removal mask|matching mask/i.test(error)?'Finish mask':error&&/painted clean frame|painted frame/i.test(error)?'Add clean frames':error||!availability?.ready?'Review setup':targeted?'Generate paintout':'Generate clean plate';
@@ -496,7 +498,7 @@ export class PaintoutWorkspace{
 
     if(node==='save'&&d.value>=d.max){this.$('progress-title').textContent='Finalising video files and audio';this.$('bar').removeAttribute('value');}
 
-    this.$('progress-detail').textContent=this.elapsed();
+    this.$('progress-detail').textContent=this.elapsed();this.updateGenerationGuide();
 
   }
 
@@ -513,6 +515,8 @@ export class PaintoutWorkspace{
     return remaining+elapsed+' elapsed';
 
   }
+
+  updateGenerationGuide(){updateGenerationSteps(this.$('generation-steps'),this.job||{phase:paintoutColourPipeline(this.config())==='sdr_hdr'?'repair':'complete'});}
 
   async generate(){
 
@@ -540,7 +544,7 @@ export class PaintoutWorkspace{
 
       this.job={id:response.prompt_id,started:Date.now(),config,phase,previewMethod:'auto',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
 
-      this.$('progress-title').textContent='Queued';this.$('progress-detail').textContent='Waiting for ComfyUI to start';this.sampleStarted=null;this.progressSnapshot=null;this.save();this.startPolling();
+      this.$('progress-title').textContent='Queued';this.$('progress-detail').textContent='Waiting for ComfyUI to start';this.sampleStarted=null;this.progressSnapshot=null;this.updateGenerationGuide();this.save();this.startPolling();
 
     }catch(e){this.message('Could not start paintout: '+e.message);}finally{this.submitting=false;this.render();}
 
@@ -555,7 +559,7 @@ export class PaintoutWorkspace{
       const response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
       if(!response.prompt_id)throw new Error('ComfyUI did not confirm HDR conversion. Check the queue before retrying.');
       this.job={id:response.prompt_id,started:Date.now(),config:pending.config,phase:'hdr',savedSequence:pending.savedSequence,previewMethod:'auto',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
-      this.$('progress-title').textContent='Queued · HDR conversion';this.$('progress-detail').textContent='The repaired clip is saved';this.sampleStarted=null;this.progressSnapshot=null;this.save();this.startPolling();
+      this.$('progress-title').textContent='Queued · HDR conversion';this.$('progress-detail').textContent='The repaired clip is saved';this.sampleStarted=null;this.progressSnapshot=null;this.updateGenerationGuide();this.save();this.startPolling();
     }catch(e){pending.failed=true;this.save();this.message('Could not start HDR conversion: '+e.message+' The repaired clip is safe.');}
     finally{this.submitting=false;this.render();}
   }
@@ -584,7 +588,7 @@ export class PaintoutWorkspace{
       }
       this.save();this.render();
 
-    }else{const queue=await this.fetch('/queue');if(this.job!==job)return;const running=queue.queue_running?.some(r=>r[1]===job.id),pending=queue.queue_pending?.some(r=>r[1]===job.id);if(!running&&!pending){if(job.phase==='hdr'&&this.pendingHDR)this.pendingHDR.failed=true;this.job=null;this.nativeSamplePreview?.clear();this.stopPolling();this.save();this.message('This run is no longer in ComfyUI’s queue. It has not been resubmitted.');this.render();}else {if(running&&this.$('progress-title').textContent==='Queued')this.$('progress-title').textContent=this.job.stages?.[this.job.currentNode]||'Starting paintout';const position=queue.queue_pending?.findIndex(r=>r[1]===job.id);this.$('progress-detail').textContent=running?this.elapsed():`Queue position ${(position??0)+1} · Waiting for ComfyUI · ${this.elapsed()}`;}}}
+    }else{const queue=await this.fetch('/queue');if(this.job!==job)return;const running=queue.queue_running?.some(r=>r[1]===job.id),pending=queue.queue_pending?.some(r=>r[1]===job.id);if(!running&&!pending){if(job.phase==='hdr'&&this.pendingHDR)this.pendingHDR.failed=true;this.job=null;this.nativeSamplePreview?.clear();this.stopPolling();this.save();this.message('This run is no longer in ComfyUI’s queue. It has not been resubmitted.');this.render();}else {if(running&&this.$('progress-title').textContent==='Queued')this.$('progress-title').textContent=this.job.stages?.[this.job.currentNode]||'Starting paintout';const position=queue.queue_pending?.findIndex(r=>r[1]===job.id);this.updateGenerationGuide();this.$('progress-detail').textContent=running?this.elapsed():`Queue position ${(position??0)+1} · Waiting for ComfyUI · ${this.elapsed()}`;}}}
 
     catch{this.connectionLost=true;this.message('Connection interrupted. Reconnecting to your saved run…');}finally{this.polling=false;}}
 
@@ -592,7 +596,7 @@ export class PaintoutWorkspace{
 
   compare(){if(!this.result||this.result.config.source!==this.state.source||!this.sourceInfo?.media_url)return;this.$('video').pause();this.comparison??=new ShotComparison(this.$('comparison'));this.$('comparison').hidden=false;this.comparison.onClose=()=>{this.$('comparison').hidden=true;};const c=this.result.config;this.comparison.show(this.url(this.sourceInfo.media_url),this.outputURL(this.result.file),c.startFrame/(this.sourceInfo.kind==='video'?this.sourceInfo.fps:c.sequenceFps),{resultLabel:'Clean plate'});}
 
-  async graph(){try{const graph=buildPaintoutGraph(this.job?.config||this.config()),original=(this.app.rootGraph||this.app.graph)?.serialize?.();if(!original||typeof this.app.loadApiJson!=='function')throw new Error('Update ComfyUI to open this editable graph.');try{await this.app.loadApiJson(graph,`Zura Paintout · ${Date.now()}.json`);await tidyArtistGraph(this.app,graph,'paintout',null);}catch(e){await this.app.loadGraphData(original);throw e;}this.studio.close();}catch(e){this.message(e.message);}}
+  async graph(){try{const config=this.job?.config||this.config(),base=buildPaintoutGraph(config),graph=this.loras?.patch?await this.loras.patch(base,config.custom_loras||[]):base,original=(this.app.rootGraph||this.app.graph)?.serialize?.();if(!original||typeof this.app.loadApiJson!=='function')throw new Error('Update ComfyUI to open this editable graph.');try{await this.app.loadApiJson(graph,`Zura Paintout · ${Date.now()}.json`);await tidyArtistGraph(this.app,graph,'paintout',null);}catch(e){await this.app.loadGraphData(original);throw e;}this.studio.close();}catch(e){this.message(e.message);}}
 
   close(){this.editor?.close();this.save();this.stopPolling();this.nativeSamplePreview?.dispose();this.nativeSamplePreview=null;this.comparison?.hide();this.$('video').pause();}
 

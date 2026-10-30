@@ -116,3 +116,21 @@
 :is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage button:disabled{opacity:.5;cursor:default}
 :is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage button:focus-visible{outline:2px solid var(--gs-accent);outline-offset:3px}
 @media(max-width:640px){:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage{align-items:stretch;flex-direction:column}}
+
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-steps{display:flex;gap:8px;list-style:none;margin:14px 0 10px;padding:0;counter-reset:generation}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-steps li{display:flex;align-items:center;gap:6px;flex:1;color:var(--gs-muted);font-size:12px;counter-increment:generation}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-steps li::before{content:counter(generation);display:grid;place-items:center;width:22px;height:22px;border:1px solid var(--gs-line);border-radius:50%;font-size:11px}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-steps li[aria-current=step]{color:var(--gs-accent);font-weight:600}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-steps li[aria-current=step]::before{border-color:var(--gs-accent)}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-steps li.is-complete::before{content:'✓';color:var(--gs-muted)}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-help,:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-next{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--gs-muted)}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-generation-next{color:var(--zc-text)}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-generation-steps{grid-column:1/-1;width:100%}
+
+:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-submit{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:12px 20px;width:100%;min-width:0;box-sizing:border-box}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-submit .zps-output-confirmation{flex:1 1 180px;min-width:0;margin:0;overflow-wrap:anywhere}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-submit #zps-generate{flex:0 0 auto;max-width:100%;white-space:normal;min-height:44px}
+@media(max-width:600px){:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-submit{flex-direction:column;align-items:stretch;gap:12px}:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-submit .zps-output-confirmation{flex-basis:auto}:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-submit #zps-generate{width:100%}}
+
+:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-bottom{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:16px}
+:is(#zura-paintout-app,#zura-paintout-app) .zp-page .zc-prompt-tools{width:100%;min-width:0}

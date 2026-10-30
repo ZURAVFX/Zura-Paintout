@@ -2,6 +2,21 @@
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 30 October 2026 navigation clarity
+
+- Next: clean frames and Next: render now appear beside the instructions above the viewer, with blue buttons and a directional icon. Generation actions remain lime. Existing stage and busy-state checks are preserved.
+- The output summary and Generate action use a wrapping layout with explicit spacing, stacking on narrow screens. Verified in both Studio mounts, dark and light themes, at desktop and narrow widths.
+
+# 30 October 2026 paint-layer controls and retry guidance
+
+- Replaced the slow full-resolution CPU mask expansion after footage loading with identical square dilation using a fast filter. Exact-mask tests include Grow 55 and frame edges. A synthetic 78-frame 1920 x 1088 Grow 55 expansion completed in 0.9 seconds; this is not whole-render timing.
+
+- Deleting a paint layer restores its effective hard mask with growth reset to zero, including when deleting the last layer, so the same area can be retried. Remove all paint layers restores the original frame and clears the paint mask.
+- Each layer has a 0-100 px Blend edge control. Releasing the slider recomposes the preview without rerunning FLUX. Blending softens the join inside that layer's mask; outside and protected pixels remain unchanged in SDR and HDR.
+- Default FLUX crop context increases from 128 to 256 source pixels. The maximum model side remains 1024 and the allowed repair boundary does not expand.
+- The default instruction is Remove the foreground object. The last artist-entered instruction persists across frames, layers, new footage and browser reload until Start over.
+- Clean-frame generation guidance uses Prepare, Generate and Save phases with a next action. These controls have structural and pixel-preservation checks; improved model quality is not established.
+
 # 30 October 2026 HDR conversion staging and streaming development
 
 - Studio saves the SDR repair before presenting Convert repaired clip to HDR. Conversion can be retried from the saved checkpoint without repeating the repair; reload restores the pending stage.

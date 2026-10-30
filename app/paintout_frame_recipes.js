@@ -1,3 +1,4 @@
+export const DEFAULT_FRAME_EDIT_PROMPT = 'Remove the foreground object';
 // Native FLUX 3 Image Klein distilled editing, with an explicit source-pixel composite.
 export const FRAME_EDIT_MODELS = {
   model: 'flux3-image-klein-int8-convrot.safetensors',
@@ -58,7 +59,7 @@ export function buildFrameEditGraph(config, info) {
   node('frame_crop', 'ZuraPaintoutFrameCrop', {
     source: config.source, frame: Number(config.frame), colour_space: config.colour_space || 'srgb_display',
     mask: config.mask, grow: Number(config.grow ?? 0), feather: Number(config.feather ?? 0),
-    context: Number(config.context ?? 128), max_side: Number(config.max_side ?? 1024),
+    context: Number(config.context ?? 256), max_side: Number(config.max_side ?? 1024),
     ...(config.base_file?{base_file:config.base_file,base_colour_space:config.base_colour_space||'srgb_display'}:{}),
     ...(config.project ? {project: config.project, mask_revision: Number(config.mask_revision)} : {}),
   }, 'Preparing the selected frame');
@@ -76,7 +77,7 @@ export function buildFrameEditGraph(config, info) {
   node('frame_vae', 'VAELoader', {vae_name: files.vae}, 'Loading the frame VAE');
   // The artist's subject goes to SAM. FLUX synthesises replacement background;
   // only the detected subject support is composited, protecting other objects.
-  node('frame_positive', 'CLIPTextEncode', {clip: ref('frame_text'), text: target?backgroundInstruction:'Artist instruction: '+String(config.prompt || 'Remove the selected object and reconstruct the background.').trim()+'\n\n'+selectionInstruction}, 'Encoding the clean-frame instruction');
+  node('frame_positive', 'CLIPTextEncode', {clip: ref('frame_text'), text: target?backgroundInstruction:'Artist instruction: '+String(config.prompt || DEFAULT_FRAME_EDIT_PROMPT).trim()+'\n\n'+selectionInstruction}, 'Encoding the clean-frame instruction');
   node('frame_negative', 'CLIPTextEncode', {clip: ref('frame_text'), text: ''}, 'Preparing frame conditioning');
   node('frame_reference', 'ReferenceMultiLatent', {
     positive: ref('frame_positive'), negative: ref('frame_negative'), vae: ref('frame_vae'),

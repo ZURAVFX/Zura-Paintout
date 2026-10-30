@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from PIL import Image
 from aiohttp import web
+from scipy.ndimage import distance_transform_edt
 from .paintout import COLOUR_SPACES, describe, frames, selected_space, read_image, is_hdr, to_linear, working, sdr_view, save_exr, protection_mask
 
 
@@ -32,13 +33,36 @@ def load_layer_image(file, colour_space, shape):
     return pixels, colour_space
 
 
+def validate_blend_pixels(value):
+    if type(value) is not int or not 0 <= value <= 100:
+        raise ValueError('Layer blend edge must be a whole number from 0 to 100 pixels.')
+    return value
+
+
+def inward_layer_alpha(mask, blend_pixels=0):
+    """Feather inside the layer only; pixel edges lie half a sample outward."""
+    blend_pixels = validate_blend_pixels(blend_pixels)
+    if not blend_pixels:
+        return mask.copy()
+    # Padding matters for masks touching the image boundary, including a mask
+    # that fills the entire image. No coverage can grow outside its support.
+    support = mask > .001
+    distance = distance_transform_edt(np.pad(support, 1, constant_values=False))[1:-1, 1:-1]
+    ramp = np.clip((distance-.5)/blend_pixels, 0, 1).astype(np.float32)
+    return mask * ramp
+
+
 def compose_pixels(original, layers, protection=None):
     """Each cumulative candidate contributes only its own independent paint mask."""
     result = original.copy()
-    for pixels, mask in layers:
+    for layer in layers:
+        if not isinstance(layer, (tuple, list)) or len(layer) not in (2, 3):
+            raise ValueError('Each clean-frame layer needs pixels, a mask and an optional blend edge.')
+        pixels, mask = layer[:2]
+        blend_pixels = validate_blend_pixels(layer[2] if len(layer) == 3 else 0)
         if pixels.shape != original.shape or mask.shape != original.shape[:2] or not np.isfinite(pixels).all() or not np.isfinite(mask).all() or np.any((mask < 0) | (mask > 1)):
             raise ValueError('Each layer and mask must match the finite original frame.')
-        alpha = mask.copy()
+        alpha = inward_layer_alpha(mask, blend_pixels)
         if protection is not None:
             if protection.shape != mask.shape or not np.isfinite(protection).all():
                 raise ValueError('The protection mask must match the frame.')
@@ -91,9 +115,10 @@ def compose_layers(body):
     def prepared_layers():
         for layer in layers:
             if not isinstance(layer, dict): raise ValueError('Each clean-frame layer needs a saved file and mask.')
+            blend_pixels = validate_blend_pixels(layer.get('blend_pixels', 0))
             pixels, colour = load_layer_image(layer['file'], layer.get('colour_space', 'srgb_display'), original.shape[:2])
             pixels = to_linear(torch.from_numpy(pixels.copy()).float(), colour).numpy() if hdr else working(torch.from_numpy(pixels.copy())[None].float(), colour, 'SDR (sRGB)')[0].numpy()
-            yield pixels, decode_mask(layer['mask'], description['width'], description['height'])
+            yield pixels, decode_mask(layer['mask'], description['width'], description['height']), blend_pixels
     result = compose_pixels(original, prepared_layers(), protection)
     if source_identity(str(source), describe(str(source))) != before:
         raise ValueError('The source changed while composing. Reload the footage.')
@@ -103,7 +128,8 @@ def compose_layers(body):
     save_exr(str(master), result, colour, False)
     preview = sdr_view(torch.from_numpy(result), True).numpy() if hdr else result
     save_png16(png, preview)
-    return dict(file=str(master), png_file=str(png), url=grant(png), master_url=grant(master), frame=frame, colour_space=colour, preview_colour_space='srgb_display', width=result.shape[1], height=result.shape[0])
+    return dict(file=str(master), png_file=str(png), url=grant(png), master_url=grant(master), frame=frame, colour_space=colour, preview_colour_space='srgb_display', width=result.shape[1], height=result.shape[0],
+                blend_widths=[layer.get('blend_pixels', 0) for layer in layers])
 
 
 async def compose_layers_route(request):

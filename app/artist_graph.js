@@ -3,20 +3,32 @@ let promotionApi;
 async function nativePromotionApi() {
   if (!promotionApi) promotionApi=(async()=>{
     // Resolve the current frontend export rather than pinning a build hash/alias.
-    const assets=performance.getEntriesByType('resource').map(entry=>entry.name);
-    const url=assets.find(url=>/\/assets\/settingStore-[^/]+\.js/.test(url));
-    if (!url) throw new Error('Update ComfyUI to open the native artist graph.');
-    const response=await fetch(url);
-    if (!response.ok) throw new Error('Could not read ComfyUI native graph tools.');
-    const alias=(await response.text()).match(/\bpromoteWidget as ([\w$]+)/)?.[1];
-    if (!alias) throw new Error('This ComfyUI frontend does not expose native widget promotion.');
-    const module=await import(url);
-    if(typeof module[alias]!=='function') throw new Error('Native widget promotion is unavailable.');
-    return module[alias];
+    const assets=performance.getEntriesByType('resource').map(entry=>entry.name)
+      .filter(url=>new URL(url).origin===location.origin&&/\/assets\/[^/]+\.js(?:$|\?)/.test(url));
+    // Promotion moved between frontend chunks; discover its exported symbol
+    // from the current loaded build rather than relying on a chunk name.
+    for(const url of [...new Set(assets)]){
+      let response;try{response=await fetch(url);}catch{continue;}if(!response.ok)continue;
+      const code=await response.text(),alias=code.match(/\bpromoteWidget as ([\w$]+)/)?.[1],orderAlias=code.match(/\breorderSubgraphInputsByWidgetOrder as ([\w$]+)/)?.[1];
+      if(!alias)continue;
+      const module=await import(url);if(typeof module[alias]==='function')return {promote:module[alias],orderInputs:module[orderAlias]};
+    }
+    throw new Error('This ComfyUI frontend does not expose native widget promotion.');
   })().catch(error=>{promotionApi=null;throw error;});
   return promotionApi;
 }
 
+function splitClipBranches(graph){
+  const take=graph.nodes.find(n=>String(n.id)==='take');if(!take)return {};
+  const plate=graph.links.get(take.inputs[0].link),source=graph.getNodeById(plate.origin_id),result={};
+  for(const [name,targets]of [['Text timing',['conditioning']],['Video timing',['latent']],['Audio timing',['audio']]]){
+    const duplicate=globalThis.LiteGraph.createNode('ZuraPaintoutTake');graph.add(duplicate);duplicate.title=name;
+    source.connect(plate.origin_slot,duplicate,0);
+    for(const link of [...graph.links.values()])if(String(link.origin_id)===String(take.id)&&targets.includes(String(link.target_id)))duplicate.connect(link.origin_slot,graph.getNodeById(link.target_id),link.target_slot);
+    result[name]=String(duplicate.id);
+  }
+  return result;
+}
 function arrange(graph) {
   const nodes=[...graph.nodes], byId=new Map(nodes.map(node=>[String(node.id),node]));
   const depth=new Map(), visiting=new Set(),links=[...graph.links.values()];
@@ -49,102 +61,100 @@ function stage(graph,ids,title) {
   return result;
 }
 
-function reorderOutputs(host, order) {
-  const sub=host.subgraph;
-  const snapshot=sub.outputs.map((slot,index)=>({name:slot.name,type:slot.type,
-    internal:slot.getLinks().map(link=>({node:sub.getNodeById(link.origin_id),slot:link.origin_slot})),
-    external:(host.outputs[index].links||[]).map(id=>host.graph.links.get(id)).filter(Boolean).map(link=>({node:host.graph.getNodeById(link.target_id),slot:link.target_slot}))}));
-  for(const slot of [...sub.outputs].reverse())sub.removeOutput(slot);
-  for(const index of order){const entry=snapshot[index],slot=sub.addOutput(entry.name,entry.type);
-    for(const old of entry.internal)slot.connect(old.node.outputs[old.slot],old.node);
-    for(const old of entry.external)host.connect(sub.outputs.indexOf(slot),old.node,old.slot);
-  }
+function reorderInputs(host,order){
+ const sub=host.subgraph;
+ const snapshot=sub.inputs.map((slot,index)=>({name:slot.name,type:slot.type,
+  internal:slot.getLinks().map(link=>({node:sub.getNodeById(link.target_id),slot:link.target_slot})),
+  external:host.inputs[index].link==null?null:host.graph.links.get(host.inputs[index].link)}));
+ for(const slot of [...sub.inputs].reverse())sub.removeInput(slot);
+ for(const index of order){const entry=snapshot[index],slot=sub.addInput(entry.name,entry.type);
+  for(const old of entry.internal)slot.connect(old.node.inputs[old.slot],old.node);
+  const link=entry.external;if(link)host.graph.getNodeById(link.origin_id).connect(link.origin_slot,host,sub.inputs.indexOf(slot));
+ }
 }
-function place(graph,id,x,y){const node=graph.nodes.find(node=>String(node.id)===String(id));if(node)node.pos=[x,y];return node;}
-function layoutModels(graph){
-  for(const [id,x,y]of [['model',120,100],['lora',620,100],['memory',1120,100],['text',1120,350],['video_vae',620,600],['float_vae',1120,600],['audio_vae',1120,850]])place(graph,id,x,y);
-  graph.outputNode.pos=[1700,100];graph.outputNode.arrange();
+function samplingModelAncestors(graph){
+ const sampler=graph.nodes.find(n=>String(n.id)==='sample'),ids=new Set(),visit=node=>{if(!node||ids.has(String(node.id)))return;ids.add(String(node.id));for(const input of node.inputs||[])if(input.link!=null&&(input.type==='MODEL'||input.name==='model')){const link=graph.links.get(input.link);if(link)visit(graph.getNodeById(link.origin_id));}};
+ if(sampler)for(const input of sampler.inputs||[])if(input.link!=null&&(input.type==='MODEL'||input.name==='model')){const link=graph.links.get(input.link);if(link)visit(graph.getNodeById(link.origin_id));}
+ return [...ids];
 }
-function layoutInternals(graph) {
-  const layouts={
-    'Text conditioning':[['positive',120,100],['negative',120,450],['conditioning',720,280]],
-    'Source samples':[['take',120,100],['latent',720,350],['audio',720,650]],
-    'Generate and decode':[['sample',120,100],['separate',720,450],['crop_guides',1220,450],['decode',1720,450]],
-    'Prepare guides':[['Models',120,100],['Source samples',620,650],['Text conditioning',1120,350],['Removal attention',1120,750],['guide',1720,350],['apply_anchors',2320,350],['combine',2820,650]]
-  };
-  const layout=layouts[graph.name];if(!layout)return;
-  for(const [id,x,y] of layout){const node=graph.nodes.find(n=>String(n.id)===id||n.title===id);if(node)node.pos=[x,y];}
-  // Give targeted removal attention a separate lower row before source guidance.
-  if(graph.name==='Prepare guides'&&graph.nodes.some(node=>node.title==='Removal attention')){
-    place(graph,'guide',1720,650);
-    const attention=graph.nodes.find(node=>node.title==='Removal attention');attention.pos=[1120,1000];
-  }
-  const bounds=graph.nodes.map(n=>n.pos[0]+n.size[0]);
-  graph.inputNode.pos=[-220,graph.name==='Prepare guides'?650:100];
-  graph.outputNode.pos=[Math.max(...bounds)+380,100];
-  graph.inputNode.arrange();graph.outputNode.arrange();
-  const route=(origin,slot,target,points)=>{
-    const node=graph.nodes.find(n=>String(n.id)===origin||n.title===origin);
-    const dest=graph.nodes.find(n=>String(n.id)===target||n.title===target);
-    const link=[...graph.links.values()].find(l=>String(l.origin_id)===String(node?.id??origin)&&(slot==null||l.origin_slot===slot)&&String(l.target_id)===String(dest?.id??target));
-    if(link)for(const point of points)graph.createReroute(point,link);
-  };
-  if(graph.name==='Text conditioning')route('-10',3,'conditioning',[[-280,800],[650,800]]);
-  if(graph.name==='Source samples'){
-    route('-10',1,'audio',[[-280,600],[650,600]]);
-    // Keep the frame-rate bypass below the video/audio sample branches.
-    if(graph.outputs.length===5)route('take',5,'-20',[[500,900],[1350,900]]);
-  }
-  if(graph.name==='Generate and decode'){
-    route('-10',1,'crop_guides',[[-280,0],[1150,0]]);
-    route('-10',2,'crop_guides',[[-280,30],[1120,30]]);
-    route('-10',4,'decode',[[-280,850],[1650,850]]);
-  }
-  if(graph.name==='Prepare guides'){
-    route('-10',1,'apply_anchors',[[0,1200],[2250,1200]]);
-    route('Models',2,'guide',[[500,240],[1650,240]]);
-    route('Models',2,'apply_anchors',[[500,240],[2250,240]]);
-    route('Source samples',0,'guide',[[1000,780],[1650,780]]);
-    route('Source samples',null,'combine',[[1000,1100],[2750,1100]]);
-  }
+function reorderOutputs(host,rank){
+ const sub=host.subgraph,snapshot=sub.outputs.map((slot,index)=>({name:slot.name,type:slot.type,
+  internal:slot.getLinks().map(link=>({node:sub.getNodeById(link.origin_id),slot:link.origin_slot})),
+  external:(host.outputs[index].links||[]).map(id=>host.graph.links.get(id)).filter(Boolean).map(link=>({node:host.graph.getNodeById(link.target_id),slot:link.target_slot}))}));
+ const order=snapshot.map((v,i)=>i).sort((a,b)=>rank(snapshot[a].internal[0])-rank(snapshot[b].internal[0]));
+ for(const slot of [...sub.outputs].reverse())sub.removeOutput(slot);
+ for(const index of order){const e=snapshot[index],slot=sub.addOutput(e.name,e.type);for(const old of e.internal)slot.connect(old.node.outputs[old.slot],old.node);for(const old of e.external)host.connect(sub.outputs.indexOf(slot),old.node,old.slot);}
 }
-function layoutRoot(graph,preparation,generation){
-  const hasMask=graph.nodes.some(node=>String(node.id)==='mask_source'),offset=hasMask?500:0;
-  if(hasMask)place(graph,'mask_source',120,100);
-  const source=place(graph,'source',120+offset,100);
-  place(graph,'anchors',620+offset,550);
-  if(preparation)preparation.node.pos=[1200+offset,100];
-  if(generation)generation.node.pos=[1700+offset,100];
-  const save=place(graph,'save',2200+offset,100);
-  const link=[...graph.links.values()].find(link=>String(link.origin_id)==='source'&&String(link.target_id)==='save');
-  if(link&&source&&save){graph.createReroute([source.pos[0]+source.size[0]+100,1000],link);graph.createReroute([save.pos[0]-100,1000],link);}
+function find(graph,id){return graph.nodes.find(n=>String(n.id)===id||n.title===id);}
+function move(graph,id,x,y){const n=find(graph,id);if(n)n.pos=[x,y];return n;}
+function route(graph,origin,slot,target,points){const a=find(graph,origin),b=find(graph,target),link=[...graph.links.values()].find(l=>String(l.origin_id)===String(a?.id??origin)&&l.origin_slot===slot&&String(l.target_id)===String(b?.id??target));if(link)for(const p of points)graph.createReroute(p,link);}
+function layoutStage(graph){
+ const moves=rows=>{for(const [id,x,y]of rows)move(graph,id,x,y);};
+ if(graph.name==='Prepare source'){
+  moves([['Text conditioning',620,100],['Video samples',620,400],['Source images',620,650],['Audio samples',620,900]]);
+  graph.inputNode.pos=[-220,100];graph.outputNode.pos=[1300,100];
+ }
+ if(graph.name==='Text conditioning'){
+  moves([['text',120,100],['positive',720,100],['negative',720,400],['Text timing',120,800],['conditioning',1320,400]]);
+  graph.inputNode.pos=[-220,400];graph.outputNode.pos=[1900,400];
+ }
+ if(graph.name==='Video samples')moves([['Video timing',120,100],['latent',720,100]]);
+ if(graph.name==='Audio samples')moves([['audio_vae',120,100],['Audio timing',120,400],['audio',720,100]]);
+ if(graph.name==='Source images'){moves([['take',120,100],['grow_mask',620,400],['block_mask',1120,400],['invert_mask',1620,400]]);graph.outputNode.pos=[Math.max(...graph.nodes.map(n=>n.pos[0]+n.size[0]))+380,100];}
+ if(graph.name==='Video VAE')moves([['video_vae',120,100],['float_vae',720,100]]);
+ if(graph.name==='Painted guides'){
+  moves([['Video VAE',120,400],['guide',720,100],['apply_anchors',1320,100]]);
+  graph.inputNode.pos=[-220,100];graph.outputNode.pos=[1900,100];
+ }
+ if(graph.name==='Generate paintout'){const n=find(graph,'sample');graph.inputNode.pos=[n.pos[0]-220,100];}
+ if(graph.name==='Decode result'){
+  moves([['separate',120,500],['crop_guides',720,100],['decode',1320,100]]);graph.inputNode.pos=[-220,100];graph.outputNode.pos=[1900,100];
+ }
+ graph.inputNode?.arrange();graph.outputNode?.arrange();
+ if(graph.name==='Painted guides'){
+  route(graph,'Video VAE',0,'apply_anchors',[[500,750],[1150,750]]);
+  route(graph,'-10',5,'apply_anchors',[[0,850],[1200,850]]);
+  route(graph,'Video VAE',0,'-20',[[500,500],[1800,500]]);
+ }
+ if(graph.name==='Decode result')route(graph,'-10',3,'decode',[[0,850],[1200,850]]);
+ if(graph.name==='Text conditioning'){const timing=find(graph,'Text timing');if(timing)route(graph,String(timing.id),5,'conditioning',[[500,1100],[1250,1100]]);}
+}
+function layoutRoot(graph){
+ let x=120;for(const id of ['mask_source','colour_check']){const n=find(graph,id);if(n){n.pos=[x,100];x+=Math.max(n.size[0],400)+180;}}
+ const source=move(graph,'source',x,400),right=x+(source?.size[0]||510),prepX=right+300,paintX=prepX+850,genX=paintX+1100,decodeX=genX+550;
+ move(graph,'Prepare source',prepX,100);move(graph,'anchors',prepX,900);move(graph,'Painted guides',paintX,100);move(graph,'combine',paintX+550,600);move(graph,'Generate paintout',genX,100);move(graph,'Decode result',decodeX,100);
+ const save=find(graph,'repair_save')||find(graph,'save');if(save)save.pos=[decodeX+550,100];const hdr=find(graph,'Convert to HDR');if(hdr){hdr.pos=[save.pos[0]+save.size[0]+220,100];move(graph,'save',hdr.pos[0]+hdr.size[0]+220,100);}
+ const floor=2000;
+ route(graph,'source',2,find(graph,'repair_save')?'repair_save':'save',[[right+100,floor],[save.pos[0]-100,floor]]);
+ route(graph,'Prepare source',5,'combine',[[prepX+420,700],[paintX+450,700]]);
+ route(graph,'Painted guides',3,'Decode result',[[paintX+420,1200],[decodeX-100,1200]]);
+ route(graph,'Painted guides',0,'Generate paintout',[[paintX+420,-220],[genX-100,-220]]);
+ route(graph,'Painted guides',1,'Generate paintout',[[paintX+440,-170],[genX-120,-170]]);
+ route(graph,'Painted guides',0,'Decode result',[[paintX+420,-220],[decodeX-100,-220]]);
+ route(graph,'Painted guides',1,'Decode result',[[paintX+440,-170],[decodeX-120,-170]]);
+}
+/** Build editable native stages. API inference nodes and model settings stay intact. */
+export async function tidyPaintoutArtistGraph(app,apiGraph){
+ const graph=app.rootGraph||app.graph;if(!graph?.convertToSubgraph)throw Error('Update ComfyUI to open native Paintout stages.');if(graph.nodes.some(n=>n.subgraph))throw Error('Open a fresh Paintout graph before arranging its stages.');
+ const frontend=await nativePromotionApi(),branches=splitClipBranches(graph);
+ const prep=stage(graph,[...Object.values(branches),'text','positive','negative','conditioning','latent','audio_vae','audio','take','grow_mask','block_mask','invert_mask'],'Prepare source');
+ const painted=stage(graph,['video_vae','float_vae','guide','apply_anchors'],'Painted guides');
+ const generation=stage(graph,[...samplingModelAncestors(graph),'sample'],'Generate paintout');
+ const decoder=stage(graph,['separate','crop_guides','decode'],'Decode result');if(decoder)reorderInputs(decoder.node,[1,2,0,3]);
+ const hdr=stage(graph,Object.keys(apiGraph||{}).filter(id=>id.startsWith('hdr_')),'Convert to HDR');
+ for(const [result,id,names]of [[prep,'positive',['text']],[generation,'sample',['seed','steps','cfg']],[hdr,'hdr_sample',['seed']]]){const inner=result?.subgraph.nodes.find(n=>String(n.id)===id);for(const name of names){const w=inner?.widgets?.find(w=>w.name===name);if(w)frontend.promote(inner,w,[result.node]);}}
+ if(prep){
+  reorderOutputs(prep.node,e=>e.node.id==='conditioning'?e.slot:e.node.id==='latent'?2:e.node.id==='take'&&e.slot===0?3:['invert_mask','take'].includes(String(e.node.id))?4:e.node.id==='audio'?5:9);
+  const g=prep.subgraph,text=stage(g,[branches['Text timing'],'text','positive','negative','conditioning'],'Text conditioning');
+  stage(g,[branches['Video timing'],'latent'],'Video samples');stage(g,[branches['Audio timing'],'audio_vae','audio'],'Audio samples');stage(g,['take','grow_mask','block_mask','invert_mask'],'Source images');
+  if(text&&frontend.orderInputs){frontend.orderInputs(text.node,['positive','negative'].map(id=>find(text.subgraph,id)?.widgets?.find(w=>w.name==='text')).filter(Boolean));}
+  const sourceLink=graph.links.get(prep.node.inputs.find(i=>i.name==='plate').link),samples=g.addInput('samples_plate','ZURA_PLATE');for(const name of ['Video samples','Audio samples','Source images']){const child=find(g,name);if(child)samples.connect(child.inputs.find(i=>i.name==='plate'),child);}
+  graph.getNodeById(sourceLink.origin_id).connect(sourceLink.origin_slot,prep.node,g.inputs.indexOf(samples));
+ }
+ if(painted){reorderOutputs(painted.node,e=>e.node.id==='apply_anchors'?e.slot:3);stage(painted.subgraph,['video_vae','float_vae'],'Video VAE');}
+ for(const g of graph.subgraphs.values())arrange(g);for(const g of graph.subgraphs.values())layoutStage(g);
+ arrange(graph);app.canvas?.setGraph?.(graph);await new Promise(r=>setTimeout(r,250));layoutRoot(graph);graph.setDirtyCanvas?.(true,true);app.canvas?.fitView?.();return {stages:graph.subgraphs.size};
 }
 
-export async function tidyArtistGraph(app) {
-  const graph=app.rootGraph||app.graph;
-  if(!graph?.convertToSubgraph)throw new Error('Update ComfyUI to open native Paintout stages.');
-  if(graph.nodes.some(node=>node.subgraph))return;
-  const promote=await nativePromotionApi();
-  const models=stage(graph,['model','lora','memory','text','video_vae','float_vae','audio_vae'],'Models');
-  const prepareIds=['positive','negative','take','conditioning','latent','grow_mask','block_mask','invert_mask','guide','apply_anchors','audio','combine'];
-  if(models)prepareIds.push(String(models.node.id));
-  const preparation=stage(graph,prepareIds,'Prepare guides');
-  if(preparation)reorderOutputs(preparation.node,[3,0,1,2,4]);
-  const generation=stage(graph,['sample','separate','crop_guides','decode'],'Generate and decode');
-  for(const [result,id,names]of [[preparation,'positive',['text']],[generation,'sample',['seed','steps']]]){
-    if(!result)continue;
-    const node=result.subgraph.nodes.find(node=>String(node.id)===id);
-    for(const name of names){const widget=node?.widgets?.find(widget=>widget.name===name);if(widget)promote(node,widget,[result.node]);}
-  }
-  if(preparation){
-    stage(preparation.subgraph,['positive','negative','conditioning'],'Text conditioning');
-    const samples=stage(preparation.subgraph,['take','latent','audio'],'Source samples');
-    if(samples?.subgraph.outputs.length===5)reorderOutputs(samples.node,[0,1,3,4,2]);
-    stage(preparation.subgraph,['grow_mask','block_mask','invert_mask'],'Removal attention');
-  }
-  for(const subgraph of graph.subgraphs.values())arrange(subgraph);
-  if(models)layoutModels(models.subgraph);
-  for(const subgraph of graph.subgraphs.values())layoutInternals(subgraph);
-  arrange(graph);layoutRoot(graph,preparation,generation);
-  graph.setDirtyCanvas?.(true,true);app.canvas?.setGraph?.(graph);app.canvas?.fitView?.();
-}
+// Preserve the Studio entry point while using the native Paintout stages.
+export const tidyArtistGraph = tidyPaintoutArtistGraph;

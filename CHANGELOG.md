@@ -14,6 +14,10 @@ Adds guided model downloads, layered clean-frame controls, mask timeline improve
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 30 October 2026: native Open graph stages (development)
+
+Open graph now uses native editable stages for targeted/full-scene and SDR/HDR workflows. Root artist controls and inference settings survive export/reload. Removes the unnecessary layout-library dependency. This frontend update is newer than Registry 0.1.3.
+
 # 30 October 2026 paint brightness and retry fixes
 
 - Added Brightness beside each layer's Blend edge control. Exposure adjustment is saved per layer, works without another FLUX run and respects the hard repair and protection boundaries in SDR and HDR.

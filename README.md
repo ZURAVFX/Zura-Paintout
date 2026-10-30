@@ -22,7 +22,7 @@ For a first test, follow [Start here: local testing](build/local-start-here.md).
 Once the pack appears in your Manager, setup uses ComfyUI's interface throughout:
 
 1. Open **Manager / Extensions**, search for **Zura Paintout**, install it and restart when prompted. Manager installs the Python dependencies declared by the pack.
-2. Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through Manager if they are missing. Download the required LTX model files using the links in [`build/model-files.md`](build/model-files.md), then place them in the listed folders using your file browser. Model access approval may be required. If FFmpeg is missing, copy `ffmpeg` and `ffprobe` into `ComfyUI/ffmpeg/bin/`. See [setup without a terminal](build/no-terminal-setup.md).
+2. Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through Manager if they are missing. Open **Zura Paintout → Models**, choose your workflow and click **Download missing models**. Existing files are reused and the panel shows progress, cancellation and any Hugging Face access steps. Manual links remain in [`build/model-files.md`](build/model-files.md). If FFmpeg is missing, copy `ffmpeg` and `ffprobe` into `ComfyUI/ffmpeg/bin/`. See [setup without a terminal](build/no-terminal-setup.md).
 3. Open **Workflow → Browse Templates** and choose **Zura Paintout → Zura_Paintout_Targeted**. Both native templates are included in `example_workflows/` for ComfyUI's Template Browser.
 4. Enter the plate, mask and clean-guide paths, check the source range and colour space, then queue the repair.
 

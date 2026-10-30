@@ -14,7 +14,11 @@ Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through the same Manager in
 
 ## Add the models once
 
-Open the links in [model files](model-files.md) in your browser. For targeted repair, download the LTX transformer, text encoder, two VAEs and Obscura adapter. Place each file in the folder shown in the table using File Explorer. Sign in and accept the model provider's terms where required.
+Open **Zura Paintout → Models** inside ComfyUI. Choose the tool you want to use and click **Download missing models**. The panel shows which files are already installed, the download size and progress. Shared files are reused, including models stored in configured extra model folders. You can cancel and retry a download without using a terminal.
+
+For gated models, open the licence link, sign in to Hugging Face and accept the publisher's terms. If access is still required, paste a Hugging Face read token into **Model licences and access** for that download. Paintout does not save the token. Existing Hugging Face credentials on the server can also be used.
+
+Missing custom-node code is shown separately: install those packs through ComfyUI Manager. Model downloads do not install node packs. The [manual model links](model-files.md) remain available if you prefer to download files yourself.
 
 SAM and FLUX files are needed only for Studio's optional tracking and clean-frame editing. You can use your existing mask and clean images directly in the native workflow.
 

@@ -78,3 +78,9 @@ These checks require real renders and artist review. Passing automated colour-tr
 
 - After tracking, use the blue Next: clean frames button beside the instructions above the viewer. After painting, Next: render appears in the same place. Both must be disabled while work is running.
 - In Render, the output summary and Generate paintout must remain separated. On a narrow window the button moves below the summary. Check SDR and HDR labels in both themes.
+
+## Model setup
+
+Open Models and choose the task you want to run. Check that existing files are recognised, including models in configured subfolders. On a clean installation, choose Download missing models and check progress, cancel, retry and completion. Shared files should be downloaded once. For restricted files, follow the access link, accept the model terms and use a read token if needed. Restart ComfyUI after installing missing node packages; model files alone should refresh without restarting. Confirm masking, FLUX and the selected SDR/HDR repair path become available after setup. Never overwrite an invalid existing model automatically: follow the conflict message and move or rename that file first.
+
+The pinned runtime catalogue is in paintout/model_downloads.py. Model licences remain those of their upstream authors; this tool's licence does not replace them.

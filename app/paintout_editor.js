@@ -658,7 +658,7 @@ export class PaintoutEditor{
       const graph=maskGraph({source:this.w.state.source,project:this.project,revision:this.revision,frame:this.w.playhead,startFrame:start,frameCount:end-start+1,
         colourSpace:this.w.state.sourceColour,operation:operation||this.$('operation').value,direction:!single&&!segment&&active?.tracked?'forward':segment?.direction||'both',selection:{...selection,hasMask},text:'',segmentId:this.activeMaskId(),tracked:!single},this.w.modelInfo);
       await this.queue(graph,'mask',null,{maskSingle:!!single,maskSegment:!!segment,selectionVersion});
-    }catch(e){this.autoPreviewPending=!!(single&&requestVersion!==this.maskEditVersion&&this.maskEditKind!=='paint'&&this.viewer.getSelection(false).positive.length);this.status(e.message);}
+    }catch(e){this.autoPreviewPending=!!(single&&requestVersion!==this.maskEditVersion&&this.maskEditKind!=='paint'&&this.viewer.getSelection(false).positive.length);if(/Install the native SAM3 checkpoint/.test(e.message))this.w.openModelSetup?.('mask');this.status(e.message);}
     finally{this.maskStarting=false;this.maskPreviewStarting=false;this.w.render();if(this.autoPreviewPending&&!this.toolJob)this.scheduleMaskPreview();}
   }
 
@@ -669,7 +669,7 @@ export class PaintoutEditor{
   async cleanFrame(){
     if(this.w.busy()||this.candidate)return;
     try{const a=this.selected();if(!a||a.frame!==this.w.playhead)throw Error('Select the clean-frame card at the frame you want to edit.');const selection=this.viewer.getSelection();
-      const availability=frameEditAvailability(this.w.modelInfo,{prompt:this.$('instruction').value});if(!availability.ready)throw Error('Frame cleaning needs: '+availability.missing.join(', '));
+      const availability=frameEditAvailability(this.w.modelInfo,{prompt:this.$('instruction').value});if(!availability.ready){this.w.openModelSetup?.('clean');throw Error('Frame cleaning needs: '+availability.missing.join(', '));}
       if(!this.w.modelInfo.ZuraPaintoutFrameCrop?.input?.optional?.base_file)throw Error('Restart ComfyUI to enable paint layers before adding another edit.');
       if(this.ensureLayers(a).length>=32)throw Error('This frame has 32 paint layers. Delete a layer before adding another.');
       const graph=buildFrameEditGraph({source:this.w.state.source,frame:a.frame,colour_space:this.w.state.sourceColour,base_file:a.file||'',base_colour_space:a.colour_space||this.w.state.sourceColour,mask:selection.mask,

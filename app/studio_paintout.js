@@ -1,3 +1,4 @@
+import {PaintoutModels} from './paintout_models.js';
 import {updateGenerationSteps} from './paintout_generation_steps.js';
 import {buildPaintoutGraph,buildPaintoutRepairGraph,buildPaintoutHDRGraph,paintoutValidation,paintoutAvailability,PAINTOUT_DEFAULT_PROMPTS,PAINTOUT_OUTPUT_MODES,PAINTOUT_SIZE_PRESETS,paintoutPresetSize,paintoutRangeFix,paintoutColourPipeline} from './paintout_recipes.js';
 
@@ -48,7 +49,7 @@ export class PaintoutWorkspace{
 
       <div class="zf-viewer">
 
-        <div id="zps-empty"><h3>Start your paintout</h3><p>Choose what you want to remove, then add your plate.</p><div class="zps-start-mode" role="group" aria-label="Choose your workflow"><button type="button" data-mode="targeted"><strong>Targeted repair</strong><span>Remove a specific subject with a mask and clean-frame guides.</span></button><button type="button" data-mode="full"><strong>Full-scene clean plate</strong><span>Clear moving subjects from the scene without a mask.</span></button></div><button type="button" id="zps-begin">Add footage</button><button type="button" id="zps-begin-sequence">Use an image sequence</button></div>
+        <div id="zps-empty"><h3>Start your paintout</h3><p>Choose what you want to remove, then add your plate.</p><div class="zps-start-mode" role="group" aria-label="Choose your workflow"><button type="button" data-mode="targeted"><strong>Targeted repair</strong><span>Remove a specific subject with a mask and clean-frame guides.</span></button><button type="button" data-mode="full"><strong>Full-scene clean plate</strong><span>Clear moving subjects from the scene without a mask.</span></button></div><button type="button" id="zps-begin">Add footage</button><button type="button" id="zps-begin-sequence">Use an image sequence</button><button type="button" id="zps-model-setup">Set up models</button></div>
 
         <div id="zps-image-slot" hidden></div><video id="zps-video" controls playsinline hidden></video><div id="zps-comparison" hidden></div>
 
@@ -170,7 +171,7 @@ export class PaintoutWorkspace{
 
     this.$('export').onclick=()=>this.exportFrame();this.$('expand').onclick=()=>this.page.querySelector('.zf-viewer').requestFullscreen?.();
 
-    this.$('refresh').onclick=()=>this.loadModels();this.$('cancel').onclick=()=>this.cancel();this.$('compare').onclick=()=>this.compare();
+    this.$('refresh').textContent='Open model setup';this.$('refresh').onclick=()=>{this.$('setup').closest('details').open=false;this.openModelSetup('video');};this.$('cancel').onclick=()=>this.cancel();this.$('compare').onclick=()=>this.compare();
 
     this.$('anchors').onclick=e=>{const remove=e.target.closest('[data-remove-anchor]'),select=e.target.closest('[data-select-anchor]');if(remove){if(this.busy())return;this.state.anchors.splice(Number(remove.dataset.removeAnchor),1);this.selected=-1;this.renderAnchors();this.changed();this.preview('source');}else if(select)this.selectAnchor(Number(select.dataset.selectAnchor));};
 
@@ -189,6 +190,7 @@ export class PaintoutWorkspace{
     for(const type of ['execution_success','execution_error','execution_interrupted'])this.api.addEventListener?.(type,e=>{if(e.detail?.prompt_id===this.job?.id)this.poll();});
 
     this.editor=new PaintoutEditor(this);
+    this.modelDownloads=new PaintoutModels(this);this.$('model-setup').onclick=()=>this.openModelSetup('video');
 
     this.renderAnchors();this.render();
 
@@ -364,6 +366,8 @@ export class PaintoutWorkspace{
 
   }
 
+  openModelSetup(scope){this.modelDownloads?.open(scope);}
+
   async loadModels(){if(this.loading)return;this.loading=true;this.render();try{this.modelInfo=await this.fetch('/object_info');this.modelError='';}catch(e){this.modelError=e.message;}finally{this.loading=false;this.render();}}
 
   async open(){attachWorkspaceSamplePreview(this);if(!this.modelInfo)this.loadModels();if(this.state.source){try{this.sourceInfo=await this.info(this.state.source);if(this.state.mask)this.maskInfo=await this.info(this.state.mask);}catch(e){this.message(this.requestError(e));}}const stage=this.state.editorStage;this.preview(this.result?'result':'source');if(this.job)this.startPolling();if(this.state.source)await this.editor?.setStage(stage==='trim'?'trim':this.state.mode==='full'||this.result?'render':stage||'mask');if(this.editor?.toolJob)this.editor.startPolling();}
@@ -460,6 +464,7 @@ export class PaintoutWorkspace{
     this.$('hdr-stage').hidden=!this.pendingHDR;this.$('convert-hdr').disabled=busy;this.$('convert-hdr').textContent=this.pendingHDR?.failed?'Retry HDR conversion':'Convert repaired clip to HDR';this.$('hdr-stage-note').textContent=(this.pendingHDR?name(this.pendingHDR.config?.source)+' · '+this.pendingHDR.config?.frameCount+' frames. ':'')+(this.pendingHDR?.failed?'HDR conversion stopped. The repaired clip is safe. Retry HDR without repeating the repair.':'Next: convert the repaired clip to HDR. The repair is saved, so this step can be retried separately.');
     this.$('generate').disabled=busy;this.$('generate').setAttribute('aria-describedby','zps-note');this.$('generate').textContent=this.job?'Generating…':this.submitting?'Submitting…':error&&/mask section|removal mask|matching mask/i.test(error)?'Finish mask':error&&/painted clean frame|painted frame/i.test(error)?'Add clean frames':error||!availability?.ready?'Review setup':targeted?'Generate paintout':'Generate clean plate';
 
+    this.modelDownloads?.setContext({stage:this.state.source?this.editor?.stage:'setup',mode:this.state.mode,pipeline:paintoutColourPipeline(this.state),phase:this.pendingHDR?'hdr':this.job?.phase,missingNodes:availability?.missing||[]});
     this.$('setup').textContent=this.loading?'Checking installed models…':this.modelError||(!availability?'Open Paintout to check installed models.':availability.ready?'Required models and nodes are installed.':'Missing: '+availability.missing.join(', '));
 
     this.$('note').textContent=error||(!busy&&this.pendingHDR?'Repair saved. Next: convert to HDR.':null)||(!availability?.ready?this.$('setup').textContent:targeted?'White removes. Black preserves. Painted frames restore the background.':'Removes people, vehicles and moving obstructions. No mask or painted frames needed.');
@@ -530,15 +535,15 @@ export class PaintoutWorkspace{
 
     if(invalid){this.message('Enter a valid '+(invalid.closest('label')?.firstChild?.textContent||'frame number').trim().toLowerCase()+'.');invalid.closest('details')?.setAttribute('open','');invalid.focus();return;}
 
-    if(!this.validationError&&!this.availability?.ready){this.message(this.$('setup').textContent);this.$('setup').closest('details').open=true;return;}
+    if(!this.validationError&&!this.availability?.ready){this.message(this.$('setup').textContent);this.openModelSetup('video');return;}
 
-    if(this.validationError||!this.availability?.ready){const reason=this.validationError||this.$('setup').textContent;if(this.editor&&/mask section|removal mask|matching mask/i.test(reason)){await this.editor.setStage('mask');const covered=new Set(this.state.maskCoverage||[]),first=Array.from({length:this.state.frameCount},(_,i)=>this.state.startFrame+i).find(f=>!covered.has(f));if(first!=null)this.seek(first);this.editor.status(reason);return;}if(this.editor&&/painted clean frame|painted frame/i.test(reason)){await this.editor.setStage('clean');this.editor.status(reason);return;}this.message(reason);const id=/frame|range|mask.*cover/i.test(reason)?'range':/width|height|resolution|pixel/i.test(reason)?'resolution':null;if(id)this.$(id).open=true;else if(!this.availability?.ready)this.$('setup').closest('details').open=true;return;}
+    if(this.validationError||!this.availability?.ready){const reason=this.validationError||this.$('setup').textContent;if(this.editor&&/mask section|removal mask|matching mask/i.test(reason)){await this.editor.setStage('mask');const covered=new Set(this.state.maskCoverage||[]),first=Array.from({length:this.state.frameCount},(_,i)=>this.state.startFrame+i).find(f=>!covered.has(f));if(first!=null)this.seek(first);this.editor.status(reason);return;}if(this.editor&&/painted clean frame|painted frame/i.test(reason)){await this.editor.setStage('clean');this.editor.status(reason);return;}this.message(reason);const id=/frame|range|mask.*cover/i.test(reason)?'range':/width|height|resolution|pixel/i.test(reason)?'resolution':null;if(id)this.$(id).open=true;else if(!this.availability?.ready)this.openModelSetup('video');return;}
 
     this.submitting=true;this.message('');this.$('progress-title').textContent='Submitting clean plate';this.$('progress-detail').textContent='Sending your run to ComfyUI…';this.$('bar').removeAttribute('value');this.render();
 
     try{
 
-      const config=this.config(),phase=paintoutColourPipeline(config)==='sdr_hdr'?'repair':'complete',graph=buildPaintoutRepairGraph(config),response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
+      const config=this.config(),phase=paintoutColourPipeline(config)==='sdr_hdr'?'repair':'complete',graph=buildPaintoutRepairGraph(config,this.modelInfo),response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
 
       if(!response.prompt_id)throw new Error('ComfyUI did not confirm this run. Check the queue before retrying.');
 
@@ -555,7 +560,7 @@ export class PaintoutWorkspace{
     const pending=this.pendingHDR;
     this.submitting=true;this.message('');this.$('progress-title').textContent='Submitting HDR conversion';this.$('progress-detail').textContent='Using the saved repaired clip';this.$('bar').removeAttribute('value');this.render();
     try{
-      const graph=buildPaintoutHDRGraph(pending.config,pending.savedSequence);
+      const graph=buildPaintoutHDRGraph(pending.config,pending.savedSequence,this.modelInfo);
       const response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
       if(!response.prompt_id)throw new Error('ComfyUI did not confirm HDR conversion. Check the queue before retrying.');
       this.job={id:response.prompt_id,started:Date.now(),config:pending.config,phase:'hdr',savedSequence:pending.savedSequence,previewMethod:'auto',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
@@ -596,8 +601,8 @@ export class PaintoutWorkspace{
 
   compare(){if(!this.result||this.result.config.source!==this.state.source||!this.sourceInfo?.media_url)return;this.$('video').pause();this.comparison??=new ShotComparison(this.$('comparison'));this.$('comparison').hidden=false;this.comparison.onClose=()=>{this.$('comparison').hidden=true;};const c=this.result.config;this.comparison.show(this.url(this.sourceInfo.media_url),this.outputURL(this.result.file),c.startFrame/(this.sourceInfo.kind==='video'?this.sourceInfo.fps:c.sequenceFps),{resultLabel:'Clean plate'});}
 
-  async graph(){try{const config=this.job?.config||this.config(),base=buildPaintoutGraph(config),graph=this.loras?.patch?await this.loras.patch(base,config.custom_loras||[]):base,original=(this.app.rootGraph||this.app.graph)?.serialize?.();if(!original||typeof this.app.loadApiJson!=='function')throw new Error('Update ComfyUI to open this editable graph.');try{await this.app.loadApiJson(graph,`Zura Paintout · ${Date.now()}.json`);await tidyArtistGraph(this.app,graph,'paintout',null);}catch(e){await this.app.loadGraphData(original);throw e;}this.studio.close();}catch(e){this.message(e.message);}}
+  async graph(){try{const config=this.job?.config||this.config(),base=buildPaintoutGraph(config,this.modelInfo),graph=this.loras?.patch?await this.loras.patch(base,config.custom_loras||[]):base,original=(this.app.rootGraph||this.app.graph)?.serialize?.();if(!original||typeof this.app.loadApiJson!=='function')throw new Error('Update ComfyUI to open this editable graph.');try{await this.app.loadApiJson(graph,`Zura Paintout · ${Date.now()}.json`);await tidyArtistGraph(this.app,graph,'paintout',null);}catch(e){await this.app.loadGraphData(original);throw e;}this.studio.close();}catch(e){this.message(e.message);}}
 
-  close(){this.editor?.close();this.save();this.stopPolling();this.nativeSamplePreview?.dispose();this.nativeSamplePreview=null;this.comparison?.hide();this.$('video').pause();}
+  close(){this.modelDownloads?.close();this.editor?.close();this.save();this.stopPolling();this.nativeSamplePreview?.dispose();this.nativeSamplePreview=null;this.comparison?.hide();this.$('video').pause();}
 
 }

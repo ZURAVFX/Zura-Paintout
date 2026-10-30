@@ -29,3 +29,6 @@ NODE_DISPLAY_NAME_MAPPINGS.update(TARGET_NAMES)
 
 from . import frame_layers
 frame_layers.register_routes()
+
+from . import model_downloads
+model_downloads.register_routes()

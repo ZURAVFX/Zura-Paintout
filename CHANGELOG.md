@@ -2,6 +2,13 @@
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 30 October 2026 model setup in Paintout
+
+- Models opens a guided setup panel for masking, FLUX clean frames, LTX repair and HDR conversion. Download missing models installs the pinned files into ComfyUI, reuses valid existing files and shared dependencies, and shows byte progress, cancellation and retry.
+- Restricted Hugging Face files show their licence/access links and an optional read-token field. Paintout does not store that token. Missing custom-node code has separate ComfyUI Manager guidance.
+- Workflow model selection recognises installed subfolders. New downloads are verified before installation and never overwrite existing final files.
+- Downloader checks use synthetic local HTTP fixtures. Full model downloads and a fresh-machine GPU run remain manual validation.
+
 # 30 October 2026 navigation clarity
 
 - Next: clean frames and Next: render now appear beside the instructions above the viewer, with blue buttons and a directional icon. Generation actions remain lime. Existing stage and busy-state checks are preserved.

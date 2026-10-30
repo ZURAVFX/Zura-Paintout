@@ -159,6 +159,46 @@ def prepare_patch(original, mask, grow=0, feather=0, context=128, max_side=1024,
     return image, matte, patch
 
 
+def match_patch_brightness(original, generated, mask, grow=0, feather=0, protection=None):
+    """Match exposure using paired, unchanged raw crop context, never the subject."""
+    from .frame_layers import adjust_brightness
+    support = maximum_filter(mask > .001, size=2*grow+1) if grow else mask > .001
+    if not support.any():
+        return generated, 0.0, 0
+    distance = distance_transform_edt(~support)
+    valid = (distance > feather+4) & (distance <= feather+64)
+    valid &= np.isfinite(original).all(-1) & np.isfinite(generated).all(-1)
+    # Near-black and clipped context cannot constrain an exposure reliably.
+    valid &= (original.max(-1) < .98) & (generated.max(-1) < .98)
+    valid &= (original.min(-1) >= 0) & (generated.min(-1) >= 0)
+    if protection is not None:
+        valid &= np.asarray(protection) <= .001
+    if valid.sum() < 64:
+        return generated, 0.0, 0
+    a, b = generated[valid], original[valid]
+    def luminance(values):
+        light = np.where(values <= .04045, values/12.92, ((values+.055)/1.055)**2.4)
+        return light @ np.array([.2126, .7152, .0722], dtype=np.float32)
+    source_light, generated_light = luminance(b), luminance(a)
+    useful = (source_light > .003) & (generated_light > .003)
+    if useful.sum() < 64:
+        return generated, 0.0, 0
+    differences = np.log2(source_light[useful]/generated_light[useful])
+    centre = np.median(differences)
+    deviation = np.median(np.abs(differences-centre))
+    # A broad disagreement normally indicates invented/moved context rather
+    # than one uniform exposure error. Leave that edit for artist judgement.
+    if deviation > .25:
+        return generated, 0.0, 0
+    consistent = np.abs(differences-centre) <= max(.08, float(deviation)*3)
+    if consistent.sum() < 64 or consistent.sum() < len(differences)*.5:
+        return generated, 0.0, 0
+    exposure = float(np.clip(np.median(differences[consistent]), -1.0, 1.0))
+    if abs(exposure) < .01:
+        exposure = 0.0
+    return adjust_brightness(generated, exposure), exposure, int(consistent.sum())
+
+
 def composite_patch(patch, generated, match_context=True):
     image = generated.detach().float().cpu() if isinstance(generated, torch.Tensor) else torch.from_numpy(np.asarray(generated)).float()
     if image.ndim == 3:
@@ -172,10 +212,16 @@ def composite_patch(patch, generated, match_context=True):
     x, y, width, height = patch['rect']
     restored = resize(image[:, :rh, :rw], height, width)[0].numpy()
     original = patch['original']
+    patch['auto_brightness_ev'], patch['auto_brightness_samples'] = 0.0, 0
+    if match_context:
+        restored, patch['auto_brightness_ev'], patch['auto_brightness_samples'] = match_patch_brightness(
+            original[y:y+height, x:x+width], restored, patch['mask'][y:y+height, x:x+width],
+            patch['grow'], patch['feather'],
+            patch['protection'][y:y+height, x:x+width] if patch.get('protection') is not None else None)
     result = original.copy()
     result[y:y+height, x:x+width], _ = composite_crop(
         original[y:y+height, x:x+width], restored,
-        patch['mask'][y:y+height, x:x+width], patch['grow'], patch['feather'], match_context,
+        patch['mask'][y:y+height, x:x+width], patch['grow'], patch['feather'], False,
         protection=patch['protection'][y:y+height, x:x+width] if patch.get('protection') is not None else None,
     )
     if patch.get('delivery_original') is not None:
@@ -357,7 +403,9 @@ class ZuraPaintoutFrameComposite:
         row = {'file': str(master), 'png_file': str(png), 'url': grant(png),
                'master_url': grant(master), 'frame': patch['frame'],
                'colour_space': colour_space, 'preview_colour_space': 'srgb_display',
-               'edit_view': patch.get('edit_view', 'SDR'), 'width': result.shape[1], 'height': result.shape[0]}
+               'edit_view': patch.get('edit_view', 'SDR'), 'width': result.shape[1], 'height': result.shape[0],
+               'auto_brightness_ev': patch.get('auto_brightness_ev', 0.0),
+               'auto_brightness_samples': patch.get('auto_brightness_samples', 0)}
         from .frame_layers import encode_layer_mask
         support = effective_edit_mask(patch.get('delivery_mask', patch['mask']), patch.get('delivery_grow', patch['grow']), patch.get('delivery_feather', patch['feather']), patch.get('delivery_protection', patch.get('protection')))
         row['layer_mask'] = encode_layer_mask((support > 0).astype(np.float32))

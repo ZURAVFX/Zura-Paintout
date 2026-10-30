@@ -268,9 +268,11 @@
 .zp-editor-paint-layers button{flex:none;min-height:36px;padding:6px 10px;border:1px solid var(--gs-line,#33333d);border-radius:5px;background:var(--gs-panel,#19191e);color:inherit;font:inherit;cursor:pointer}
 .zp-editor-paint-layers button:hover{background:var(--gs-line,#33333d)}.zp-editor-paint-layers button:disabled{opacity:.45;cursor:default}
 .zp-editor-paint-layers button:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:2px}
-.zp-editor-layer-blend{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:11px;max-width:330px}
-.zp-editor-layer-blend input{min-width:70px;width:150px;flex:1;accent-color:var(--gs-accent,#caff00)}
-.zp-editor-layer-blend output{min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
+.zp-editor-layer-adjustments{display:flex;flex-wrap:wrap;gap:6px 24px;margin-top:6px;max-width:700px}
+.zp-editor-layer-blend,.zp-editor-layer-brightness{display:flex;align-items:center;gap:10px;flex:1 1 260px;min-width:0;font-size:11px}
+.zp-editor-layer-adjustments label>span{min-width:62px}
+.zp-editor-layer-adjustments input{min-width:70px;width:140px;flex:1;accent-color:var(--gs-accent,#caff00)}
+.zp-editor-layer-adjustments output{min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:500px){.zp-editor-paint-layers li{gap:8px}.zp-editor-paint-layers li img{width:48px;height:30px}}
 
 /* One Lucide family, with compact glyphs inside comfortable hit targets. */

@@ -1,3 +1,7 @@
+# 0.1.3: paint-layer retry and blending
+
+Removing paint layers keeps the effective mask ready to retry. Adds adjacent brightness and blend controls, conservative exposure matching for new generations and opaque coverage at physical frame edges.
+
 # 0.1.2: installed VAE compatibility
 
 Recognises the authentic FLUX.2-dev VAE variant after full upstream hash verification, without replacing working models. Includes current local setup guidance.
@@ -9,6 +13,13 @@ Adds guided model downloads, layered clean-frame controls, mask timeline improve
 # 0.1.0: standalone Registry testing release
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
+
+# 30 October 2026 paint brightness and retry fixes
+
+- Added Brightness beside each layer's Blend edge control. Exposure adjustment is saved per layer, works without another FLUX run and respects the hard repair and protection boundaries in SDR and HDR.
+- Frame borders no longer fade towards the original plate when blending an edge-clipped repair. Interior joins retain the adjustable blend.
+- New FLUX results use a conservative scalar exposure match from paired unchanged raw crop context, with a neutral fallback for insufficient or inconsistent context. This replaces frame-editor per-channel fitting and does not alter the video compositor.
+- Remove all paint layers restores the original image while retaining a usable effective paint mask for immediate retry. It does not remove the tracked shot mask.
 
 # 30 October 2026 model setup in Paintout
 

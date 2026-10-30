@@ -6,6 +6,8 @@ import {buildFrameEditGraph,frameEditAvailability,DEFAULT_FRAME_EDIT_PROMPT} fro
 
 const endpoint='/zura/paintout/editor';
 const el=(tag,text)=>{const node=document.createElement(tag);if(text)node.textContent=text;return node;};
+const paintLayerRequest=layer=>({file:layer.file,colour_space:layer.colour_space,mask:layer.layer_mask,blend_pixels:layer.blend_pixels||0,brightness_ev:layer.brightness_ev||0});
+const brightnessLabel=value=>`${Number(value)>0?'+':''}${Number(value).toFixed(2)}`;
 const number=(value,min,max)=>Math.max(min,Math.min(max,Math.round(Number(value)||0)));
 const iconLabel=(button,icon,label)=>{button.innerHTML=maskIcons[icon];button.append(el('span',label));button.classList.add('zp-editor-labelled-icon');};
 
@@ -587,7 +589,7 @@ export class PaintoutEditor{
     this.importing=true;this.updateControls();
     try{while(this.saving)await new Promise(resolve=>setTimeout(resolve,10));await this.loadDocument();
       const result=await w.fetch(endpoint+'/accept-import-review',{project:this.project,source:w.state.source,frame:anchor.frame,token:candidate.review.token,scope,expected_revision:this.revision});
-      const retained=this.ensureLayers(anchor),stack=retained.length?await w.fetch(endpoint+'/compose-layers',{project:this.project,source:w.state.source,frame:anchor.frame,colour_space:w.state.sourceColour,expected_revision:this.revision,layers:[...retained.map(layer=>({file:layer.file,colour_space:layer.colour_space,mask:layer.layer_mask,blend_pixels:layer.blend_pixels||0})),{file:result.file,colour_space:result.colour_space,mask:result.mask}]}):result;
+      const retained=this.ensureLayers(anchor),stack=retained.length?await w.fetch(endpoint+'/compose-layers',{project:this.project,source:w.state.source,frame:anchor.frame,colour_space:w.state.sourceColour,expected_revision:this.revision,layers:[...retained.map(paintLayerRequest),{file:result.file,colour_space:result.colour_space,mask:result.mask,blend_pixels:0,brightness_ev:0}]}):result;
       this.addPaintLayer(anchor,{...result,method:'manual',layer_mask:result.mask,prompt:'Imported edited frame'});Object.assign(anchor,{file:stack.file,preview_file:stack.png_file||stack.preview_file||'',preview_colour_space:stack.preview_colour_space||'srgb_display',colour_space:stack.colour_space,editMask:result.mask,editGrow:0});delete anchor.candidate;this.candidate=null;this.frameKey=null;w.syncAnchorControls?.(w.selected);w.save();this.status(scope==='include'?'Imported edits included in this guide. The video mask is unchanged.':'Imported frame accepted. Pixels outside the repair remain identical to the source.');
     }catch(error){this.status(error.message);}finally{this.importing=false;w.save();w.render();if(this.active)await this.frameChanged(true);}
   }
@@ -743,7 +745,7 @@ export class PaintoutEditor{
   }
   addPaintLayer(anchor,result){
     const layers=this.ensureLayers(anchor);
-    layers.push({...result,id:crypto.randomUUID(),layer_mask:result.layer_mask||result.effective_mask||result.mask||this.fullFrameMask()});
+    layers.push({...result,brightness_ev:result.brightness_ev||0,id:crypto.randomUUID(),layer_mask:result.layer_mask||result.effective_mask||result.mask||this.fullFrameMask()});
     Object.assign(anchor,{file:result.file,preview_file:result.png_file||result.preview_file||'',preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});
     const blank=document.createElement('canvas');blank.width=this.w.sourceInfo.width;blank.height=this.w.sourceInfo.height;anchor.editMask=blank.toDataURL('image/png');anchor.editGrow=0;
     delete anchor.candidate;anchor.editSeed=((anchor.editSeed??Number(this.w.state.seed))+1)%2147483647;
@@ -751,28 +753,37 @@ export class PaintoutEditor{
   }
   renderLayers(anchor,visible,busy){
     this.layersPanel.hidden=!visible;if(!visible){this.layerPanelKey=null;return;}
-    const layers=this.ensureLayers(anchor),key=JSON.stringify([anchor.id||anchor.frame,busy,!!this.candidate,layers.map(layer=>[layer.id,layer.file,layer.prompt,layer.blend_pixels||0])]);if(key===this.layerPanelKey)return;this.layerPanelKey=key;this.layersPanel.replaceChildren();
+    const layers=this.ensureLayers(anchor),key=JSON.stringify([anchor.id||anchor.frame,busy,!!this.candidate,layers.map(layer=>[layer.id,layer.file,layer.prompt,layer.blend_pixels||0,layer.brightness_ev||0])]);if(key===this.layerPanelKey)return;this.layerPanelKey=key;this.layersPanel.replaceChildren();
     const heading=el('strong',`Paint layers${layers.length?' · '+layers.length:''}`),help=el('span',layers.length?'All layers are used. Newest on top. Delete a layer to remove its paint.':'Paint an area above, then generate. Each result adds a layer automatically.');
     this.layersPanel.append(heading,help);const list=el('ol');list.setAttribute('aria-label','Paint layers, newest first');
     layers.map((layer,index)=>({layer,index})).reverse().forEach(({layer,index})=>{
       const row=el('li'),image=el('img');image.alt='';image.src=this.w.thumbnail(layer.png_file||layer.preview_file||layer.file,0,layer.png_file||layer.preview_file?(layer.preview_colour_space||'srgb_display'):layer.colour_space,160);
       const label=el('div');label.append(el('strong',`Layer ${index+1}${layer.method==='manual'?' · Imported':layer.method==='saved'?' · Saved':' · FLUX'}`),el('span',layer.prompt||'Painted repair'));
-      const blend=el('label'),slider=el('input'),amount=el('output',`${layer.blend_pixels||0} px`);blend.className='zp-editor-layer-blend';slider.type='range';slider.min=0;slider.max=100;slider.step=1;slider.value=layer.blend_pixels||0;slider.disabled=busy||!!this.candidate;slider.setAttribute('aria-label',`Blend edge of paint layer ${index+1}`);slider.title='Soften the join inside this layer’s mask. Pixels outside the mask stay unchanged.';slider.oninput=()=>{amount.textContent=slider.value+' px';};slider.onchange=()=>this.blendPaintLayer(layer.id,Number(slider.value));blend.append(el('span','Blend edge'),slider,amount);label.append(blend);
+      const adjustments=el('div');adjustments.className='zp-editor-layer-adjustments';
+      const blend=el('label'),slider=el('input'),amount=el('output',`${layer.blend_pixels||0} px`);blend.className='zp-editor-layer-blend';slider.type='range';slider.min=0;slider.max=100;slider.step=1;slider.value=layer.blend_pixels||0;slider.disabled=busy||!!this.candidate;slider.setAttribute('aria-label',`Blend edge of paint layer ${index+1}`);slider.title='Soften the join inside this layer’s mask. Frame edges and pixels outside the mask stay unchanged.';slider.oninput=()=>{amount.textContent=slider.value+' px';};slider.onchange=()=>this.blendPaintLayer(layer.id,Number(slider.value));blend.append(el('span','Blend edge'),slider,amount);
+      const brightness=el('label'),light=el('input'),level=el('output',brightnessLabel(layer.brightness_ev||0));brightness.className='zp-editor-layer-brightness';light.type='range';light.min=-2;light.max=2;light.step=.05;light.value=layer.brightness_ev||0;light.disabled=busy||!!this.candidate;light.setAttribute('aria-label',`Brightness of paint layer ${index+1}`);light.title='Fine-tune this layer in stops. 0 keeps the saved layer brightness. Release to update without generating again.';light.oninput=()=>{level.textContent=brightnessLabel(light.value);};light.onchange=()=>this.brightnessPaintLayer(layer.id,Number(light.value));brightness.append(el('span','Brightness'),light,level);adjustments.append(blend,brightness);label.append(adjustments);
       const remove=el('button');iconLabel(remove,'trash','Delete layer');remove.type='button';remove.disabled=busy||!!this.candidate;remove.setAttribute('aria-label',`Delete paint layer ${index+1}`);remove.title=`Delete paint layer ${index+1}`;remove.onclick=()=>this.removePaintLayer(layer.id);
       row.append(image,label,remove);list.append(row);
     });this.layersPanel.append(list);
   }
-  async blendPaintLayer(id,width){
+  blendPaintLayer(id,width){return this.adjustPaintLayer(id,{blend_pixels:width});}
+  brightnessPaintLayer(id,value){return this.adjustPaintLayer(id,{brightness_ev:value});}
+  async adjustPaintLayer(id,change){
     const anchor=this.selected();if(this.w.busy()||this.candidate||!anchor||anchor.frame!==this.w.playhead)return;
-    const layers=this.ensureLayers(anchor),layer=layers.find(layer=>layer.id===id);if(!layer||!Number.isInteger(width)||width<0||width>100||width===(layer.blend_pixels||0))return;
-    this.importing=true;this.updateControls();this.status('Updating the paint blend…');
+    const layers=this.ensureLayers(anchor),layer=layers.find(layer=>layer.id===id);if(!layer)return;
+    if('blend_pixels' in change&&(!Number.isInteger(change.blend_pixels)||change.blend_pixels<0||change.blend_pixels>100))return;
+    if('brightness_ev' in change&&(!Number.isFinite(change.brightness_ev)||change.brightness_ev< -2||change.brightness_ev>2))return;
+    if(Object.entries(change).every(([key,value])=>value===(layer[key]||0)))return;
+    const source=this.w.state.source,project=this.project,requested=layers.map(item=>paintLayerRequest(item.id===id?{...item,...change}:item));
+    this.importing=true;this.updateControls();this.status('Updating the paint layer…');
     try{
       while(this.saving)await new Promise(resolve=>setTimeout(resolve,20));
-      const result=await this.w.fetch(endpoint+'/compose-layers',{project:this.project,source:this.w.state.source,frame:anchor.frame,colour_space:this.w.state.sourceColour,expected_revision:this.revision,layers:layers.map(item=>({file:item.file,colour_space:item.colour_space,mask:item.layer_mask,blend_pixels:item.id===id?width:item.blend_pixels||0}))});
-      if(!Array.isArray(result.blend_widths)||result.blend_widths.length!==layers.length||result.blend_widths.some((value,index)=>value!==(layers[index].id===id?width:layers[index].blend_pixels||0)))throw Error('Restart ComfyUI after updating to enable paint-layer blending, then refresh this page.');
-      layer.blend_pixels=width;Object.assign(anchor,{file:result.file,preview_file:result.png_file||result.preview_file||'',preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});
-      this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.status(`Blend edge updated to ${width} px. Pixels outside the mask are kept.`);
-    }catch(error){this.status('Could not update this blend: '+error.message);}finally{this.importing=false;this.layerPanelKey=null;this.w.save();this.w.render();await this.frameChanged(true);}
+      const result=await this.w.fetch(endpoint+'/compose-layers',{project,source,frame:anchor.frame,colour_space:this.w.state.sourceColour,expected_revision:this.revision,layers:requested});
+      if(this.project!==project||this.w.state.source!==source||this.selected()!==anchor||anchor.frame!==this.w.playhead||anchor.layers!==layers)throw Error('The selected frame changed. Adjust its layer again.');
+      if(!Array.isArray(result.blend_widths)||result.blend_widths.length!==requested.length||result.blend_widths.some((value,index)=>value!==requested[index].blend_pixels)||!Array.isArray(result.brightness_values)||result.brightness_values.length!==requested.length||result.brightness_values.some((value,index)=>value!==requested[index].brightness_ev))throw Error('Restart ComfyUI after updating to enable paint-layer brightness and blending, then refresh this page.');
+      Object.assign(layer,change);Object.assign(anchor,{file:result.file,preview_file:result.png_file||result.preview_file||'',preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});
+      this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.status('brightness_ev' in change?`Brightness updated to ${brightnessLabel(change.brightness_ev)} stops. Pixels outside the mask are kept.`:`Blend edge updated to ${change.blend_pixels} px. Pixels outside the mask are kept.`);
+    }catch(error){this.status('Could not update this layer: '+error.message);}finally{this.importing=false;this.layerPanelKey=null;this.w.save();this.w.render();await this.frameChanged(true);}
   }
   async removePaintLayer(id){
     const anchor=this.selected();if(this.w.busy()||this.candidate||!anchor||anchor.frame!==this.w.playhead)return;
@@ -782,7 +793,7 @@ export class PaintoutEditor{
     try{
       while(this.saving)await new Promise(resolve=>setTimeout(resolve,20));
       if(remaining.length){
-        const result=await this.w.fetch(endpoint+'/compose-layers',{project:this.project,source:this.w.state.source,frame:anchor.frame,colour_space:this.w.state.sourceColour,expected_revision:this.revision,layers:remaining.map(layer=>({file:layer.file,colour_space:layer.colour_space,mask:layer.layer_mask,blend_pixels:layer.blend_pixels||0}))});
+        const result=await this.w.fetch(endpoint+'/compose-layers',{project:this.project,source:this.w.state.source,frame:anchor.frame,colour_space:this.w.state.sourceColour,expected_revision:this.revision,layers:remaining.map(paintLayerRequest)});
         Object.assign(anchor,{file:result.file,preview_file:result.png_file||result.preview_file||'',preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});
       }else{
         for(const key of ['file','preview_file','preview_colour_space','colour_space','candidate','versions'])delete anchor[key];
@@ -793,11 +804,23 @@ export class PaintoutEditor{
       this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.w.save();this.status('Layer deleted. Its mask is restored. Click Clean with FLUX 3 to try again.');
     }catch(error){this.status('Could not delete this layer: '+error.message);}finally{this.importing=false;this.w.save();this.w.render();await this.frameChanged(true);}
   }
-  discardFrame(){
+  async discardFrame(){
     const anchor=this.selected();if(this.w.busy()||!anchor||anchor.frame!==this.w.playhead)return;
-    for(const key of ['file','preview_file','preview_colour_space','colour_space','candidate','versions','layers','editMask','editGrow'])delete anchor[key];
-    const blank=document.createElement('canvas');blank.width=this.w.sourceInfo.width;blank.height=this.w.sourceInfo.height;anchor.editMask=blank.toDataURL('image/png');anchor.editGrow=0;
-    anchor.layers=[];anchor.status='draft';this.candidate=null;this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.w.save();this.w.render();this.frameChanged(true);this.status('All paint layers removed. You are back to the original frame. Paint a new area to start again.');
+    const source=this.w.state.source,project=this.project,selection=this.viewer.getSelection(),layers=this.ensureLayers(anchor);
+    this.importing=true;this.updateControls();
+    try{
+      const canvas=document.createElement('canvas');canvas.width=this.w.sourceInfo.width;canvas.height=this.w.sourceInfo.height;const ctx=canvas.getContext('2d');ctx.fillStyle='black';ctx.fillRect(0,0,canvas.width,canvas.height);
+      let masks=selection.hasMask?[selection.mask]:layers.map(layer=>layer.layer_mask).filter(Boolean),temporary;
+      if(selection.hasMask&&Number(this.$('grow').value)>0){
+        const response=await this.w.api.fetchApi(endpoint+'/effective-mask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mask:selection.mask,width:canvas.width,height:canvas.height,grow:Number(this.$('grow').value),feather:0,project:this.w.state.maskProject,revision:this.w.state.maskRevision,source,frame:anchor.frame})});
+        if(!response.ok)throw Error('Could not preserve the expanded paint mask.');temporary=URL.createObjectURL(await response.blob());masks=[temporary];
+      }
+      try{for(const mask of masks){const image=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('Could not restore a paint layer mask.'));image.src=mask;});if(image.width!==canvas.width||image.height!==canvas.height)throw Error('The paint mask does not match this plate.');ctx.globalCompositeOperation='lighten';ctx.drawImage(image,0,0);}}finally{if(temporary)URL.revokeObjectURL(temporary);}
+      const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);for(let i=0;i<pixels.data.length;i+=4){const value=pixels.data[i]>127?255:0;pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=value;pixels.data[i+3]=255;}ctx.putImageData(pixels,0,0);
+      if(this.project!==project||this.w.state.source!==source||this.selected()!==anchor||anchor.frame!==this.w.playhead||anchor.layers!==layers)throw Error('The selected frame changed. Remove its layers again.');
+      for(const key of ['file','preview_file','preview_colour_space','colour_space','candidate','versions'])delete anchor[key];
+      anchor.editMask=canvas.toDataURL('image/png');anchor.editGrow=0;anchor.layers=[];anchor.status='draft';this.candidate=null;this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.status('All paint layers removed. Original frame restored; your mask is ready to paint again.');
+    }catch(error){this.status('Could not remove paint layers: '+error.message);}finally{this.importing=false;this.w.save();this.w.render();await this.frameChanged(true);}
   }
   async selectMask(delta){if(this.w.busy()||!this.project)return;try{const doc=await this.loadDocument(),list=doc.mask_history||[],index=list.findIndex(m=>m.revision===doc.mask_revision),next=list[index+delta];if(!next)return;const updated=await this.w.fetch(endpoint+'/mask-select',{project:this.project,mask_revision:next.revision,expected_revision:this.revision});this.document=updated;this.revision=updated.revision;this.w.state.maskRevision=updated.mask_revision;this.w.state.maskCoverage=updated.mask_coverage;await this.frameChanged(true);this.w.changed();}catch(e){this.status(e.message);}}
   async cancel(){this.autoPreviewPending=false;clearTimeout(this.autoPreviewTimer);if(!this.toolJob)return;try{const id=this.toolJob.id;await this.w.fetch('/queue',{delete:[id]});await this.w.fetch('/interrupt',{prompt_id:id});this.status('Cancellation requested for this run.');}catch(e){this.status(e.message);}}

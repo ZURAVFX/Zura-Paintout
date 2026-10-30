@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from PIL import Image
 from aiohttp import web
-from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import distance_transform_edt, label
 from .paintout import COLOUR_SPACES, describe, frames, selected_space, read_image, is_hdr, to_linear, working, sdr_view, save_exr, protection_mask
 
 
@@ -39,27 +39,58 @@ def validate_blend_pixels(value):
     return value
 
 
+def validate_brightness_ev(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or not -2 <= value <= 2:
+        raise ValueError('Layer brightness must be a number from -2 to +2 stops.')
+    return float(value)
+
+
+def adjust_brightness(pixels, brightness_ev, linear=False):
+    """An unclipped exposure change, in scene-linear or decoded sRGB light."""
+    brightness_ev = validate_brightness_ev(brightness_ev)
+    if brightness_ev == 0:
+        return pixels
+    if linear:
+        return pixels * np.float32(2.0**brightness_ev)
+    source = np.asarray(pixels, dtype=np.float32)
+    decoded = np.where(source <= .04045, source/12.92, ((np.maximum(source, 0)+.055)/1.055)**2.4)
+    decoded *= np.float32(2.0**brightness_ev)
+    return np.where(decoded <= .0031308, decoded*12.92, 1.055*np.maximum(decoded, 0)**(1/2.4)-.055).astype(np.float32)
+
+
 def inward_layer_alpha(mask, blend_pixels=0):
-    """Feather inside the layer only; pixel edges lie half a sample outward."""
+    """Blend real joins in-frame, while keeping an off-screen repair opaque."""
     blend_pixels = validate_blend_pixels(blend_pixels)
-    if not blend_pixels:
-        return mask.copy()
-    # Padding matters for masks touching the image boundary, including a mask
-    # that fills the entire image. No coverage can grow outside its support.
     support = mask > .001
-    distance = distance_transform_edt(np.pad(support, 1, constant_values=False))[1:-1, 1:-1]
+    if not blend_pixels or support.all() or not support.any():
+        return mask.copy()
+    # Image boundaries are not a join to original pixels. Extend edge coverage
+    # instead of introducing an artificial zero border around the image.
+    distance = distance_transform_edt(np.pad(support, 1, mode='edge'))[1:-1, 1:-1]
     ramp = np.clip((distance-.5)/blend_pixels, 0, 1).astype(np.float32)
+    contact = np.zeros_like(support)
+    contact[0] = support[0]; contact[-1] = support[-1]
+    contact[:, 0] = support[:, 0]; contact[:, -1] = support[:, -1]
+    if contact.any():
+        # Even a thin clipped object must not return at the frame boundary.
+        # Fade this continuation smoothly inward, only on edge-connected pieces.
+        components, _ = label(support)
+        edge_components = np.unique(components[contact])
+        continued = np.clip(1-distance_transform_edt(~contact)/blend_pixels, 0, 1)
+        continued *= np.isin(components, edge_components)
+        ramp = np.maximum(ramp, continued)
     return mask * ramp
 
 
-def compose_pixels(original, layers, protection=None):
+def compose_pixels(original, layers, protection=None, linear=False):
     """Each cumulative candidate contributes only its own independent paint mask."""
     result = original.copy()
     for layer in layers:
-        if not isinstance(layer, (tuple, list)) or len(layer) not in (2, 3):
-            raise ValueError('Each clean-frame layer needs pixels, a mask and an optional blend edge.')
+        if not isinstance(layer, (tuple, list)) or len(layer) not in (2, 3, 4):
+            raise ValueError('Each clean-frame layer needs pixels, a mask and optional blend and brightness controls.')
         pixels, mask = layer[:2]
-        blend_pixels = validate_blend_pixels(layer[2] if len(layer) == 3 else 0)
+        brightness_ev = validate_brightness_ev(layer[3] if len(layer) == 4 else 0)
+        blend_pixels = validate_blend_pixels(layer[2] if len(layer) >= 3 else 0)
         if pixels.shape != original.shape or mask.shape != original.shape[:2] or not np.isfinite(pixels).all() or not np.isfinite(mask).all() or np.any((mask < 0) | (mask > 1)):
             raise ValueError('Each layer and mask must match the finite original frame.')
         alpha = inward_layer_alpha(mask, blend_pixels)
@@ -68,7 +99,7 @@ def compose_pixels(original, layers, protection=None):
                 raise ValueError('The protection mask must match the frame.')
             alpha[protection > .001] = 0
         active = alpha > 0
-        result[active] = result[active]*(1-alpha[active,None]) + pixels[active]*alpha[active,None]
+        result[active] = result[active]*(1-alpha[active,None]) + adjust_brightness(pixels[active], brightness_ev, linear)*alpha[active,None]
     return result
 
 
@@ -116,10 +147,11 @@ def compose_layers(body):
         for layer in layers:
             if not isinstance(layer, dict): raise ValueError('Each clean-frame layer needs a saved file and mask.')
             blend_pixels = validate_blend_pixels(layer.get('blend_pixels', 0))
+            brightness_ev = validate_brightness_ev(layer.get('brightness_ev', 0))
             pixels, colour = load_layer_image(layer['file'], layer.get('colour_space', 'srgb_display'), original.shape[:2])
             pixels = to_linear(torch.from_numpy(pixels.copy()).float(), colour).numpy() if hdr else working(torch.from_numpy(pixels.copy())[None].float(), colour, 'SDR (sRGB)')[0].numpy()
-            yield pixels, decode_mask(layer['mask'], description['width'], description['height']), blend_pixels
-    result = compose_pixels(original, prepared_layers(), protection)
+            yield pixels, decode_mask(layer['mask'], description['width'], description['height']), blend_pixels, brightness_ev
+    result = compose_pixels(original, prepared_layers(), protection, linear=hdr)
     if source_identity(str(source), describe(str(source))) != before:
         raise ValueError('The source changed while composing. Reload the footage.')
     directory = Path(folder_paths.get_output_directory())/'paintout'/'clean_frames'; directory.mkdir(parents=True, exist_ok=True)
@@ -129,7 +161,8 @@ def compose_layers(body):
     preview = sdr_view(torch.from_numpy(result), True).numpy() if hdr else result
     save_png16(png, preview)
     return dict(file=str(master), png_file=str(png), url=grant(png), master_url=grant(master), frame=frame, colour_space=colour, preview_colour_space='srgb_display', width=result.shape[1], height=result.shape[0],
-                blend_widths=[layer.get('blend_pixels', 0) for layer in layers])
+                blend_widths=[layer.get('blend_pixels', 0) for layer in layers],
+                brightness_values=[validate_brightness_ev(layer.get('brightness_ev', 0)) for layer in layers])
 
 
 async def compose_layers_route(request):

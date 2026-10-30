@@ -90,3 +90,10 @@ The pinned runtime catalogue is in paintout/model_downloads.py. Model licences r
 Brightness sits beside Blend edge on every layer. Test darkening, brightening and returning to 0 without running FLUX again. Each layer must retain its settings after another layer is added/deleted and after reopening the project. SDR adjustment uses linear-light exposure; HDR masters retain their extended range. Outside the paint support and inside protected areas, pixels must remain unchanged.
 
 Paint a subject that leaves each frame edge. Increase Blend edge and check that the original object does not return as a thin strip at the border. Test a fully painted frame and a narrow edge-clipped mask as well as an interior mask. New FLUX results use conservative exposure matching from the unchanged generated crop context. If that context is insufficient or inconsistent, adjustment remains neutral; use Brightness for the final judgement.
+
+## Compact controls
+
+- Open Workspace: saved Projects, History and Models remain usable. Start a new paintout sits in its own bottom section and keeps stored projects available.
+- Open View and switch source/mask/painted/result; return to Mask or Clean frames to restore editing tools.
+- Open Mask options: import a mask, change tracking settings or access prior mask passes. Open Frame actions: import/download a frame or remove all paint layers.
+- Check Escape, keyboard focus and dismissal after an action. Confirm errors and generation progress remain visible, and source/output SDR/HDR stays clear.

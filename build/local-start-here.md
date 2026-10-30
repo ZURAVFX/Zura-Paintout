@@ -28,3 +28,7 @@ Use the full [manual test checklist](manual-testing.md) before treating this tes
 Report: build/commit, shot dimensions and frame rate, source range, stage, steps, expected result, actual result, affected frame numbers and any ComfyUI error. Include a screenshot or short capture where useful.
 
 Independent-machine installation and artist acceptance remain open. Passing automated checks does not establish final shot quality.
+
+## Finding the controls
+
+The viewer keeps Select, Paint, Erase and Pan together. Mask options contains imported masks, tracking settings and mask history. Frame actions contains imports, downloads and Remove all paint layers. Workspace holds saved projects, model downloads and history, with Start a new paintout separated at the bottom. View switches between source, mask, painted frame and result. Processing size, clip range and delivery options are under Settings on Render. Input/output SDR or HDR stays visible in the header.

@@ -45,11 +45,11 @@ export class PaintoutWorkspace{
 
     this.page.innerHTML=`
 
-      <div class="zf-heading"><h2>Paintout</h2><div class="zps-colour-status" id="zps-colour-status" aria-label="Input and output colour" hidden><span><strong id="zps-input-range"></strong><small id="zps-input-space"></small></span><span><strong id="zps-output-range"></strong><small id="zps-output-space"></small></span><details id="zps-check-colour" hidden><summary>Check colour</summary><div><label>Actual source colour<select id="zps-source-colour-confirm">${options(colours,this.state.sourceColour)}</select></label><p>Tags are missing or unsupported. Choose the colour space your footage was saved in.</p></div></details></div><div class="zps-view-tabs" role="group" aria-label="Paintout preview">${[['source','Source'],['mask','Mask'],['anchor','Painted frame'],['result','Result']].map(([id,label])=>`<button type="button" data-view="${id}">${label}</button>`).join('')}</div><button type="button" id="zps-compare" hidden>Compare</button><a id="zps-download" hidden download>Download</a><details id="zps-history"><summary>History</summary><div id="zps-takes"></div></details><button type="button" id="zps-new">Start over</button></div>
+      <div class="zf-heading"><h2>Paintout</h2><div class="zps-colour-status" id="zps-colour-status" aria-label="Input and output colour" hidden><span><strong id="zps-input-range"></strong><small id="zps-input-space"></small></span><span><strong id="zps-output-range"></strong><small id="zps-output-space"></small></span><details id="zps-check-colour" hidden><summary>Set colour</summary><div><label>Actual source colour<select id="zps-source-colour-confirm">${options(colours,this.state.sourceColour)}</select></label><p>Choose the footage's original colour space.</p></div></details></div><details class="zps-preview-menu" id="zps-preview-menu"><summary>View: <span id="zps-view-label">Source</span> ${icons.chevron}</summary><div class="zps-menu-panel"><div class="zps-view-tabs" role="group" aria-label="Paintout preview">${[['source','Source'],['mask','Mask'],['anchor','Painted frame'],['result','Result']].map(([id,label])=>`<button type="button" data-view="${id}">${label}</button>`).join('')}</div><button type="button" id="zps-compare" hidden>Compare result</button><a id="zps-download" hidden download>Download result</a></div></details><details class="zps-workspace-menu" id="zps-workspace-menu"><summary>Workspace ${icons.chevron}</summary><div class="zps-menu-panel" data-project-menu><details id="zps-history"><summary>History</summary><div id="zps-takes"></div></details><button type="button" id="zps-new" title="Begin a new paintout. Saved projects remain available.">Start a new paintout</button></div></details></div>
 
       <div class="zf-viewer">
 
-        <div id="zps-empty"><h3>Start your paintout</h3><p>Choose what you want to remove, then add your plate.</p><div class="zps-start-mode" role="group" aria-label="Choose your workflow"><button type="button" data-mode="targeted"><strong>Targeted repair</strong><span>Remove a specific subject with a mask and clean-frame guides.</span></button><button type="button" data-mode="full"><strong>Full-scene clean plate</strong><span>Clear moving subjects from the scene without a mask.</span></button></div><button type="button" id="zps-begin">Add footage</button><button type="button" id="zps-begin-sequence">Use an image sequence</button><button type="button" id="zps-model-setup">Set up models</button></div>
+        <div id="zps-empty"><h3>Start your paintout</h3><p>Choose a workflow and add footage.</p><div class="zps-start-mode" role="group" aria-label="Choose your workflow"><button type="button" data-mode="targeted"><strong>Targeted repair</strong><span>Remove selected objects.</span></button><button type="button" data-mode="full"><strong>Full-scene clean plate</strong><span>Remove moving subjects.</span></button></div><button type="button" id="zps-begin">Add footage</button><button type="button" id="zps-begin-sequence">Image sequence</button><button type="button" id="zps-model-setup">Set up models</button></div>
 
         <div id="zps-image-slot" hidden></div><video id="zps-video" controls playsinline hidden></video><div id="zps-comparison" hidden></div>
 
@@ -89,7 +89,7 @@ export class PaintoutWorkspace{
 
           <details class="zc-tool-popup" id="zps-range"><summary class="zc-tool">${icons.clock}<span id="zps-range-label">81 frames</span>${icons.chevron}</summary><div class="zc-tool-panel"><strong>Export clip</strong><button type="button" id="zps-edit-trim">Trim clip…</button><div class="zf-dimensions" id="zps-range-fields"><label>First source frame<input id="zps-start" type="text" inputmode="numeric" min="0" step="1" value="0"/></label><label>Frame count<input id="zps-count" type="text" inputmode="numeric" min="1" max="993" step="1" value="81"/></label></div><button type="button" id="zps-full-range">Use entire source</button><p id="zps-range-help">One continuous shot per run. Longer ranges need more memory.</p><label id="zps-fps-control" hidden>Sequence frame rate<input id="zps-fps" type="number" min="1" max="120" step="0.001" value="25"/></label></div></details>
 
-          <details class="zc-tool-popup"><summary class="zc-tool" aria-label="Paintout settings">${icons.settings}</summary><div class="zc-tool-panel"><strong>Processing & delivery</strong><p>INT8 · 8 steps · original-resolution delivery</p><label>Source colour space<select id="zps-colour">${options(colours,this.state.sourceColour)}</select></label><label hidden>Process as<select id="zps-processing"><option>SDR (sRGB)</option><option>HDR (ACEScct)</option></select></label><label>Save as<select id="zps-output">${PAINTOUT_OUTPUT_MODES.map(mode=>`<option>${mode}</option>`).join('')}</select></label><label id="zps-block-control">Mask block size<select id="zps-mask-block"><option value="0">Off</option><option value="8">8 px · fine</option><option value="16">16 px</option><option value="32">32 px · default</option><option value="64">64 px</option><option value="128">128 px</option><option value="256">256 px</option><option value="512">512 px · coarse</option></select><small>LTX guidance only. Final repair boundary stays unchanged.</small></label><label>Seed<input id="zps-seed" type="number" min="0" max="9007199254740991" step="1" value="42"/></label><div id="zps-setup"></div><button type="button" id="zps-refresh">Refresh models</button></div></details>
+          <details class="zc-tool-popup" id="zps-render-settings"><summary class="zc-tool" aria-label="Paintout settings">${icons.settings}<span>Settings</span></summary><div class="zc-tool-panel"><strong>Processing & delivery</strong><p>INT8 · 8 steps · original-resolution delivery</p><label>Source colour space<select id="zps-colour">${options(colours,this.state.sourceColour)}</select></label><label hidden>Process as<select id="zps-processing"><option>SDR (sRGB)</option><option>HDR (ACEScct)</option></select></label><label>Save as<select id="zps-output">${PAINTOUT_OUTPUT_MODES.map(mode=>`<option>${mode}</option>`).join('')}</select></label><label id="zps-block-control">Mask block size<select id="zps-mask-block"><option value="0">Off</option><option value="8">8 px · fine</option><option value="16">16 px</option><option value="32">32 px · default</option><option value="64">64 px</option><option value="128">128 px</option><option value="256">256 px</option><option value="512">512 px · coarse</option></select><small>Guidance only; keeps final mask edges.</small></label><label>Seed<input id="zps-seed" type="number" min="0" max="9007199254740991" step="1" value="42"/></label><div id="zps-setup"></div><button type="button" id="zps-refresh">Refresh models</button></div></details>
 
           <details class="zc-tool-popup" id="zps-anchor-settings" hidden><summary class="zc-tool">Painted frame ${icons.chevron}</summary><div class="zc-tool-panel"><strong id="zps-selected-name"></strong><div class="zps-anchor-shortcuts"><button type="button" data-anchor-frame="first">First selected</button><button type="button" data-anchor-frame="current">Use playhead</button><button type="button" data-anchor-frame="last">Last selected</button></div><label>Guide strength<input id="zps-anchor-strength" type="number" min="0.01" max="1" step="0.01" value="0.75"/></label><label>Image colour space<select id="zps-anchor-colour">${options(colours.filter(([id])=>id!=='auto'),'srgb_display')}</select></label><label class="zf-check"><input type="checkbox" id="zps-anchor-enabled" checked/>Use this painted frame</label><button type="button" id="zps-replace-anchor">Replace image</button></div></details>
 
@@ -119,7 +119,7 @@ export class PaintoutWorkspace{
 
     for(const button of this.page.querySelectorAll('[data-mode]'))button.onclick=()=>this.setMode(button.dataset.mode);
 
-    for(const button of this.page.querySelectorAll('[data-view]'))button.onclick=()=>this.preview(button.dataset.view);
+    for(const button of this.page.querySelectorAll('[data-view]'))button.onclick=()=>{this.$('preview-menu').open=false;this.preview(button.dataset.view);};
 
     this.$('source-colour-confirm').onchange=()=>{if(this.busy())return;this.$('colour').value=this.$('source-colour-confirm').value;this.$('check-colour').open=false;this.$('colour').onchange();};
 
@@ -191,6 +191,17 @@ export class PaintoutWorkspace{
 
     this.editor=new PaintoutEditor(this);
     this.modelDownloads=new PaintoutModels(this);this.$('model-setup').onclick=()=>this.openModelSetup('video');
+    this.page.querySelector('[data-project-menu]').insertBefore(this.modelDownloads.root,this.$('new'));const newSection=document.createElement('div');newSection.className='zps-workspace-new';newSection.setAttribute('role','group');newSection.setAttribute('aria-label','New paintout');newSection.append(this.$('new'));this.page.querySelector('[data-project-menu]').append(newSection);
+    const renderPanel=this.$('render-settings').querySelector('.zc-tool-panel');
+    for(const id of ['resolution','range'])renderPanel.append(this.$(id));
+    this.$('new').addEventListener('click',()=>{this.$('workspace-menu').open=false;});
+    this.$('workspace-menu').addEventListener('toggle',()=>{if(!this.$('workspace-menu').open)this.modelDownloads?.close();});
+    this.menuOutside=event=>{for(const id of ['workspace-menu','preview-menu']){const menu=this.$(id);if(menu.open&&!menu.contains(event.target))menu.open=false;}};
+    this.page.addEventListener('pointerdown',this.menuOutside);
+    for(const id of ['workspace-menu','preview-menu'])this.$(id).addEventListener('focusout',()=>setTimeout(()=>{const menu=this.$(id);if(menu.open&&!menu.contains(document.activeElement))menu.open=false;},0));
+    this.$('workspace-menu').addEventListener('click',event=>{if(event.target.closest('#zps-takes button,.zp-editor-projects button,#zps-new'))this.$('workspace-menu').open=false;});
+    this.$('preview-menu').addEventListener('click',event=>{if(event.target.closest('#zps-compare,#zps-download'))this.$('preview-menu').open=false;});
+    this.page.addEventListener('keydown',event=>{if(event.key!=='Escape')return;for(const id of ['workspace-menu','preview-menu']){const menu=this.$(id);if(menu.open){event.stopPropagation();menu.open=false;menu.querySelector('summary').focus();break;}}});
 
     this.renderAnchors();this.render();
 
@@ -366,7 +377,7 @@ export class PaintoutWorkspace{
 
   }
 
-  openModelSetup(scope){this.modelDownloads?.open(scope);}
+  openModelSetup(scope){this.$('workspace-menu').open=true;this.modelDownloads?.open(scope);}
 
   async loadModels(){if(this.loading)return;this.loading=true;this.render();try{this.modelInfo=await this.fetch('/object_info');this.modelError='';}catch(e){this.modelError=e.message;}finally{this.loading=false;this.render();}}
 
@@ -374,7 +385,7 @@ export class PaintoutWorkspace{
 
   renderColourStatus(config){
     const has=!!this.state.source,info=this.sourceInfo||{};
-    this.$('colour-status').hidden=!has;
+    this.$('colour-status').hidden=!has;this.$('preview-menu').hidden=!has;
     const hdr=space=>['acescg','acescct','hlg_rec2020','pq_rec2020','pq_display_p3','linear_rec709'].includes(space);
     const label=space=>colours.find(([id])=>id===space)?.[1]||space||'Unknown colour space';
     const detected=info.resolved_colour,selected=config.sourceColour==='auto'?detected:config.sourceColour;
@@ -390,6 +401,8 @@ export class PaintoutWorkspace{
     const output=format.includes('HLG')?'HDR':format.includes('SDR')?'SDR':pipeline==='sdr_sdr'?'SDR':'HDR';
     this.$('output-range').textContent=`Output: ${output}`;
     this.$('output-space').textContent=format;
+    this.$('input-range').title=this.$('input-space').textContent;this.$('output-range').title=format;
+    this.$('input-range').setAttribute('aria-describedby','zps-input-space');this.$('output-range').setAttribute('aria-describedby','zps-output-space');
     this.$('output-confirmation').textContent=`Will save ${output} · ${format}`;
   }
 
@@ -439,6 +452,7 @@ export class PaintoutWorkspace{
 
     this.$('scrubber').hidden=!this.sourceInfo||this.view==='result';this.$('scrub').max=this.$('frame').max=Math.max(0,(this.sourceInfo?.frames||1)-1);this.updatePlayhead();
 
+    this.$('view-label').textContent=({source:'Source',mask:'Mask',anchor:'Painted frame',result:'Result'})[this.view]||'Source';
     for(const b of this.page.querySelectorAll('[data-view]')){b.setAttribute('aria-pressed',String(b.dataset.view===this.view));b.disabled=b.dataset.view==='mask'?(!targeted||!(c.mask||c.maskProject&&c.maskRevision!=null)):b.dataset.view==='anchor'?(!targeted||this.selected<0):b.dataset.view==='result'?!this.result:!c.source;}
 
     for(const id of ['source','sequence','begin','begin-sequence','new','prompt','start','count','fps','colour','processing','size-mode','megapixels','output','seed','full-range','refresh','anchor-strength','anchor-colour','anchor-enabled','replace-anchor'])this.$(id).disabled=busy;
@@ -461,13 +475,13 @@ export class PaintoutWorkspace{
 
     this.$('export').disabled=busy;this.$('progress').hidden=!this.job&&!this.submitting;this.$('cancel').disabled=!this.job;this.updateGenerationGuide();
 
-    this.$('hdr-stage').hidden=!this.pendingHDR;this.$('convert-hdr').disabled=busy;this.$('convert-hdr').textContent=this.pendingHDR?.failed?'Retry HDR conversion':'Convert repaired clip to HDR';this.$('hdr-stage-note').textContent=(this.pendingHDR?name(this.pendingHDR.config?.source)+' · '+this.pendingHDR.config?.frameCount+' frames. ':'')+(this.pendingHDR?.failed?'HDR conversion stopped. The repaired clip is safe. Retry HDR without repeating the repair.':'Next: convert the repaired clip to HDR. The repair is saved, so this step can be retried separately.');
+    this.$('hdr-stage').hidden=!this.pendingHDR;this.$('convert-hdr').disabled=busy;this.$('convert-hdr').textContent=this.pendingHDR?.failed?'Retry HDR conversion':'Convert to HDR';this.$('hdr-stage-note').textContent=this.pendingHDR?.failed?'Conversion stopped. Your repair is saved.':'Repair saved. Ready for HDR.';
     this.$('generate').disabled=busy;this.$('generate').setAttribute('aria-describedby','zps-note');this.$('generate').textContent=this.job?'Generating…':this.submitting?'Submitting…':error&&/mask section|removal mask|matching mask/i.test(error)?'Finish mask':error&&/painted clean frame|painted frame/i.test(error)?'Add clean frames':error||!availability?.ready?'Review setup':targeted?'Generate paintout':'Generate clean plate';
 
     this.modelDownloads?.setContext({stage:this.state.source?this.editor?.stage:'setup',mode:this.state.mode,pipeline:paintoutColourPipeline(this.state),phase:this.pendingHDR?'hdr':this.job?.phase,missingNodes:availability?.missing||[]});
     this.$('setup').textContent=this.loading?'Checking installed models…':this.modelError||(!availability?'Open Paintout to check installed models.':availability.ready?'Required models and nodes are installed.':'Missing: '+availability.missing.join(', '));
 
-    this.$('note').textContent=error||(!busy&&this.pendingHDR?'Repair saved. Next: convert to HDR.':null)||(!availability?.ready?this.$('setup').textContent:targeted?'White removes. Black preserves. Painted frames restore the background.':'Removes people, vehicles and moving obstructions. No mask or painted frames needed.');
+    this.$('note').textContent=error||(!availability?.ready?this.$('setup').textContent:'');this.$('note').hidden=!this.$('note').textContent;
 
     this.$('note').classList.toggle('is-error',!!error||!availability?.ready);
 
@@ -537,7 +551,7 @@ export class PaintoutWorkspace{
 
     if(!this.validationError&&!this.availability?.ready){this.message(this.$('setup').textContent);this.openModelSetup('video');return;}
 
-    if(this.validationError||!this.availability?.ready){const reason=this.validationError||this.$('setup').textContent;if(this.editor&&/mask section|removal mask|matching mask/i.test(reason)){await this.editor.setStage('mask');const covered=new Set(this.state.maskCoverage||[]),first=Array.from({length:this.state.frameCount},(_,i)=>this.state.startFrame+i).find(f=>!covered.has(f));if(first!=null)this.seek(first);this.editor.status(reason);return;}if(this.editor&&/painted clean frame|painted frame/i.test(reason)){await this.editor.setStage('clean');this.editor.status(reason);return;}this.message(reason);const id=/frame|range|mask.*cover/i.test(reason)?'range':/width|height|resolution|pixel/i.test(reason)?'resolution':null;if(id)this.$(id).open=true;else if(!this.availability?.ready)this.openModelSetup('video');return;}
+    if(this.validationError||!this.availability?.ready){const reason=this.validationError||this.$('setup').textContent;if(this.editor&&/mask section|removal mask|matching mask/i.test(reason)){await this.editor.setStage('mask');const covered=new Set(this.state.maskCoverage||[]),first=Array.from({length:this.state.frameCount},(_,i)=>this.state.startFrame+i).find(f=>!covered.has(f));if(first!=null)this.seek(first);this.editor.status(reason);return;}if(this.editor&&/painted clean frame|painted frame/i.test(reason)){await this.editor.setStage('clean');this.editor.status(reason);return;}this.message(reason);const id=/frame|range|mask.*cover/i.test(reason)?'range':/width|height|resolution|pixel/i.test(reason)?'resolution':null;if(id){this.$('render-settings').open=true;this.$(id).open=true;}else if(!this.availability?.ready)this.openModelSetup('video');return;}
 
     this.submitting=true;this.message('');this.$('progress-title').textContent='Submitting clean plate';this.$('progress-detail').textContent='Sending your run to ComfyUI…';this.$('bar').removeAttribute('value');this.render();
 

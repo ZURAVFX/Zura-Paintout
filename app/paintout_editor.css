@@ -292,3 +292,30 @@
 :is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next:disabled{background:var(--gs-input,#222228);color:var(--gs-muted,#a3a3aa);cursor:default;opacity:1}
 :is(#zura-paintout-app,#zura-paintout-app) .zp-editor-guide .zp-editor-next[hidden]{display:none}
 @media(max-width:700px){.zp-editor-guide{grid-template-columns:minmax(0,1fr);gap:6px}.zp-editor-guide-actions{grid-column:1;grid-row:auto;margin-top:6px;justify-content:flex-end}.zp-editor-guide .zp-editor-next{width:100%}}
+
+/* Quiet editing surface: primary actions stay visible, utilities are grouped. */
+.zp-editor-action-menu{position:relative;flex:none;font:12px/1.4 system-ui;color:var(--zc-text,#f2f2f0)}
+.zp-editor-action-menu>summary{display:flex;align-items:center;gap:8px;min-height:36px;box-sizing:border-box;padding:7px 10px;list-style:none;cursor:pointer;border:1px solid var(--gs-line,#383838);border-radius:5px;background:transparent;color:inherit}
+.zp-editor-action-menu>summary::-webkit-details-marker{display:none}
+.zp-editor-action-menu>summary:after{content:'';width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-top:-3px}
+.zp-editor-action-menu>summary:hover{background:var(--zc-hover,#26262b)}
+.zp-editor-action-menu>summary:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:3px}
+.zp-editor-action-menu>div{position:absolute;right:0;top:calc(100% + 6px);z-index:35;display:flex;flex-direction:column;gap:3px;min-width:210px;max-width:calc(100vw - 40px);padding:6px;border:1px solid var(--gs-line,#383838);border-radius:6px;background:var(--gs-panel,#1b1b1b)}
+.zp-editor-action-menu:not([open])>div{display:none}
+.zp-editor-action-menu>div>button{width:100%;justify-content:flex-start;text-align:left;min-height:36px;padding:8px 10px}
+.zp-editor-action-menu>div>button[hidden]{display:none}
+.zp-editor-mask-flow .zp-editor-selection-row{display:none}
+.zp-editor-mask-flow{display:flex;flex-wrap:wrap;gap:8px}
+.zp-editor-mask-flow>.zp-editor-mask-actions{flex:1;display:flex;align-items:center;gap:10px;padding:0;border:0}
+.zp-editor-mask-actions>.zp-editor-mask-intro{margin-right:auto;padding:0;border:0}
+.zp-editor-mask-flow>[data-editor=status]:empty{display:none}
+.zp-editor-guide>span[hidden]{display:none}
+.zp-editor-guide{grid-template-rows:auto;padding-block:10px}
+.zp-editor-guide-actions{grid-row:1}
+.zp-editor-clean-actions>[data-editor=frame-label]{flex-basis:100%;font-size:11px;color:var(--gs-muted,#ababab);font-weight:400}
+.zp-editor-viewer-toolbar .zp-editor-compare{border-color:var(--gs-line,#383838)}
+.zp-editor-timeline__hint{display:none}
+.zp-editor-paint-layers li>button{min-width:36px;padding:8px}
+@media(max-width:700px){.zp-editor-guide-actions{grid-row:auto}.zp-editor-viewer-toolbar{justify-content:flex-start}.zp-editor-mask-sizing{width:100%}.zp-editor-mask-actions>.zp-editor-mask-intro{margin-right:auto}.zp-editor-action-menu>div{min-width:190px}}
+
+.zp-editor-action-menu>div>details{position:static;padding:6px 10px;border:0;border-radius:0}.zp-editor-action-menu>div>details>summary{cursor:pointer;min-height:32px;align-content:center}.zp-editor-action-menu>div:has(details[open]){width:min(380px,calc(100vw - 40px));max-height:65vh;overflow:auto}.zp-editor-action-menu .zp-editor-track-range{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.zp-editor-action-menu .zp-editor-track-range label{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}.zp-editor-action-menu .zp-editor-track-range input{width:90px}.zp-editor-action-menu .zp-editor-track-range select{max-width:65%}

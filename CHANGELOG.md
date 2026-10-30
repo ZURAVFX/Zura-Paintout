@@ -14,6 +14,10 @@ Adds guided model downloads, layered clean-frame controls, mask timeline improve
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 30 October 2026: quieter Studio controls (development)
+
+One short instruction per step, compact labelled tools and contextual action menus. Workspace groups Projects, Models and History; Start a new paintout is separated at the bottom. View groups preview choices. Frame actions groups imports, downloads and removing paint layers. Tracking settings and mask history remain available under Mask options. SDR/HDR input and output stay visible. Keyboard dismissal, focus return, contextual model setup and desktop/narrow dark/light layouts are checked. No processing settings or model quality changed.
+
 # 30 October 2026: native Open graph stages (development)
 
 Open graph now uses native editable stages for targeted/full-scene and SDR/HDR workflows. Root artist controls and inference settings survive export/reload. Removes the unnecessary layout-library dependency. This frontend update is newer than Registry 0.1.3.

@@ -68,7 +68,10 @@ def main():
         check(graph['colour_check']['class_type'] == 'ZuraPaintoutColourCheck', 'HDR source preflight')
         check(graph['save']['class_type'] == ('ZuraPaintoutHDRSave' if conversion else 'ZuraPaintoutUncrop'), 'HDR delivery node')
         if conversion:
-            check(graph['hdr_lora']['inputs']['model'] == ['model', 0], 'HDR adapter isolation')
+            check(graph['hdr_lora']['inputs']['model'] == ['hdr_model', 0], 'HDR adapter isolation')
+            check(graph['hdr_model']['inputs']['unet_name'] == ['hdr_prepare', 7], 'HDR loading waits for repair memory release')
+            check(graph['hdr_sample']['class_type'] == 'LTXVTiledFusionSampler', 'streaming HDR fusion')
+            check(graph['hdr_guide']['inputs']['tile_frames'] == graph['hdr_sample']['inputs']['tile_frames'], 'matched HDR temporal windows')
             check(graph['hdr_sampler']['inputs']['sampler_name'] == 'euler', 'official HDR sampler')
         for node in graph.values():
             for value in node['inputs'].values():

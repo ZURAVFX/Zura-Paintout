@@ -2,13 +2,22 @@
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.
 
+# 30 October 2026 HDR conversion staging and streaming development
+
+- Studio saves the SDR repair before presenting Convert repaired clip to HDR. Conversion can be retried from the saved checkpoint without repeating the repair; reload restores the pending stage.
+- Streaming TiledFusion keeps original-resolution delivery and uses overlapping temporal windows. The 121-source-frame limit remains. The 40-million pixel-frame guide-encoding limit applies per 9- or 17-frame window, with an 8 GiB CPU guide allocation guard. No smaller processing proxy is substituted.
+- Cached model weights are unloaded at the conversion boundary. Other allocations may remain; this is not a guarantee of a full VRAM reset.
+- The full native repair-and-conversion graph remains available. The streaming route has not yet passed a GPU render test; temporal joins, memory behaviour and final HDR shot quality still need manual validation.
+
 # 30 October 2026 clean-frame removal fix
+
+- Named removal instructions use the original crop as the FLUX reference, so the object named in the prompt remains visible to the model. Controlled frame-0 tests remove the foreground silver car instead of copying the grey blanking fill. Generic painted-area cleanup retains the erased reference. The hard final paint boundary and layer controls are unchanged.
 
 - Clean-frame paint layers stack automatically after each FLUX generation. New edits use the current painted frame; delete individual layers without restoring older paint outside their masks, or choose Remove all paint layers to start from the original. No Use clean frame approval is required. Layer recomposition preserves source dimensions and HDR master pixels outside the retained masks.
 - Remove repeated-edge crop padding. Crops take real adjacent image context to reach the model grid, including when touching the source edge; tiny or downscaled crops use a recorded reversible grid resize.
 - Correct corrupted UTF-8 punctuation in progress and frame labels; package verification rejects common corrupted-text sequences.
 - Show a plain-language next action above the viewer throughout trimming, masking, tracking, clean-frame review and rendering. Instructions stay visible on narrow screens. Accepted clean frames expose Next: render beside the editing controls.
-- FLUX receives a single reference with the painted target erased, so the unwanted object is no longer reinforced by original and red-overlay references. The artist's instruction controls reconstruction. A controlled test removes the actual failed silver car; unseen background still requires artist review.
+- FLUX uses a single reference. Named-object removal uses the original crop so the named target remains visible to the model; generic painted-area cleanup uses an erased reference. A controlled frame-0 test removed the silver car. Unseen background and retained subjects still require artist review.
 - Model-facing selection now follows mask expansion in original plate pixels, including protected areas. Final compositing keeps the original effective boundary without applying growth twice.
 - Render settings expose mask block size, including Off. This changes LTX guidance, not the final repair boundary.
 

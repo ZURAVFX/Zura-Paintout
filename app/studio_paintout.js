@@ -1,4 +1,4 @@
-import {buildPaintoutGraph,paintoutValidation,paintoutAvailability,PAINTOUT_DEFAULT_PROMPTS,PAINTOUT_OUTPUT_MODES,PAINTOUT_SIZE_PRESETS,paintoutPresetSize,paintoutRangeFix,paintoutColourPipeline} from './paintout_recipes.js';
+import {buildPaintoutGraph,buildPaintoutRepairGraph,buildPaintoutHDRGraph,paintoutValidation,paintoutAvailability,PAINTOUT_DEFAULT_PROMPTS,PAINTOUT_OUTPUT_MODES,PAINTOUT_SIZE_PRESETS,paintoutPresetSize,paintoutRangeFix,paintoutColourPipeline} from './paintout_recipes.js';
 
 import {composerIcons as icons} from './studio_composer.js';
 
@@ -36,7 +36,7 @@ export class PaintoutWorkspace{
 
     this.state=paintoutDraft(saved.draft);
 
-    this.state.anchors=Array.isArray(this.state.anchors)?this.state.anchors:[];this.prompts=saved.prompts||{};this.sourceInfo=saved.sourceInfo||null;this.maskInfo=saved.maskInfo||null;this.job=saved.job||null;this.items=Array.isArray(saved.items)?saved.items.slice(0,12):[];this.playhead=Number.isInteger(this.state.editorPlayhead)?Math.max(0,Math.min((this.sourceInfo?.frames||100001)-1,this.state.editorPlayhead)):this.state.startFrame;this.selected=Number.isInteger(this.state.editorSelected)&&this.state.anchors[this.state.editorSelected]?this.state.editorSelected:-1;this.view='source';this.result=saved.result||this.items.find(item=>item.config?.source===this.state.source)||null;
+    this.state.anchors=Array.isArray(this.state.anchors)?this.state.anchors:[];this.prompts=saved.prompts||{};this.sourceInfo=saved.sourceInfo||null;this.maskInfo=saved.maskInfo||null;this.job=saved.job||null;this.pendingHDR=saved.pendingHDR||(this.job?.phase==='hdr'&&this.job.savedSequence?{config:this.job.config,savedSequence:this.job.savedSequence}:null);this.items=Array.isArray(saved.items)?saved.items.slice(0,12):[];this.playhead=Number.isInteger(this.state.editorPlayhead)?Math.max(0,Math.min((this.sourceInfo?.frames||100001)-1,this.state.editorPlayhead)):this.state.startFrame;this.selected=Number.isInteger(this.state.editorSelected)&&this.state.anchors[this.state.editorSelected]?this.state.editorSelected:-1;this.view='source';this.result=saved.result||this.items.find(item=>item.config?.source===this.state.source)||null;
 
     this.page=document.createElement('section');this.page.className='zf-page zp-page';
 
@@ -92,7 +92,7 @@ export class PaintoutWorkspace{
 
         </div><div class="zc-prompt-submit"><p class="zps-output-confirmation" id="zps-output-confirmation" aria-live="polite"></p><button type="submit" class="gs-primary" id="zps-generate" disabled>Generate clean plate</button></div></div>
 
-        <p id="zps-note" aria-live="polite"></p>
+        <p id="zps-note" aria-live="polite"></p><div id="zps-hdr-stage" class="zps-hdr-stage" hidden><div><strong>Repair saved</strong><p id="zps-hdr-stage-note">Next: convert the repaired clip to HDR. You can retry this step without repeating the repair.</p></div><button type="button" id="zps-convert-hdr">Convert repaired clip to HDR</button></div>
 
       </form>`;
 
@@ -123,6 +123,8 @@ export class PaintoutWorkspace{
     this.$('prompt').oninput=()=>{this.prompts[this.state.mode]=this.$('prompt').value;this.save();};
 
     this.$('mask-block').onchange=()=>{if(this.busy())return;this.state.maskBlockSize=Number(this.$('mask-block').value);this.changed();};
+
+    this.$('convert-hdr').onclick=()=>this.convertHDR();
 
     this.$('pipeline').value=paintoutColourPipeline(this.state);
 
@@ -232,7 +234,7 @@ export class PaintoutWorkspace{
 
   applySize(){const mode=this.state.resolutionMode;if(mode==='default'){this.state.width=1152;this.state.height=640;}else if(PAINTOUT_SIZE_PRESETS.some(p=>p[0]===mode))Object.assign(this.state,paintoutPresetSize(mode,this.state.megapixels));this.$('width').value=this.state.width;this.$('height').value=this.state.height;}
 
-  save(){this.editor?.saveSoon();try{localStorage.setItem(KEY,JSON.stringify({draft:this.state,prompts:this.prompts,sourceInfo:this.sourceInfo,maskInfo:this.maskInfo,job:this.job,items:this.items,result:this.result}));}catch{this.message('Browser storage is full. Your output files remain on disk.');}}
+  save(){this.editor?.saveSoon();try{localStorage.setItem(KEY,JSON.stringify({draft:this.state,prompts:this.prompts,sourceInfo:this.sourceInfo,maskInfo:this.maskInfo,job:this.job,pendingHDR:this.pendingHDR,items:this.items,result:this.result}));}catch{this.message('Browser storage is full. Your output files remain on disk.');}}
 
   changed(){this.message('');this.save();this.render();}
 
@@ -250,7 +252,7 @@ export class PaintoutWorkspace{
 
     if(this.busy())return;try{await this.editor?.flushManual();await this.editor?.persist();}catch(e){this.message(e.message);return;}let added=false;this.picking=true;this.render();
 
-    try{const [file]=await this.pick(kind);if(!file)return;const info=await this.info(file);this.state.source=file;this.state.activeMaskSegment=null;this.state.maskSegmentDraft=null;this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.maskCoverage=null;this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;this.sourceInfo=info;this.state.sourceColourConfirmed=false;if(!info.resolved_colour){this.state.sourceColour="srgb_display";this.state.colourPipeline="sdr_sdr";this.state.processingSpace="SDR (sRGB)";this.state.outputMode="SDR video";this.$("colour").value=this.state.sourceColour;this.$("processing").value=this.state.processingSpace;this.$("output").value=this.state.outputMode;}if(info.resolved_colour){this.state.sourceColour=info.resolved_colour;this.$('colour').value=info.resolved_colour;this.state.colourPipeline=['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(info.resolved_colour)?'hdr_hdr':'sdr_sdr';this.state.processingSpace=this.state.colourPipeline==='hdr_hdr'?'HDR (ACEScct)':'SDR (sRGB)';this.state.outputMode=this.state.colourPipeline==='hdr_hdr'?'EXR + HLG video':'SDR video';this.$('processing').value=this.state.processingSpace;this.$('output').value=this.state.outputMode;}this.state.mask='';this.maskInfo=null;this.state.anchors=[];this.selected=-1;this.state.startFrame=0;this.state.frameCount=Math.min(81,info.frames);this.playhead=0;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.$('start').value=0;this.$('count').value=this.state.frameCount;this.renderAnchors();this.changed();this.preview('source');this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;added=true;}
+    try{const [file]=await this.pick(kind);if(!file)return;const info=await this.info(file);this.state.source=file;this.state.activeMaskSegment=null;this.state.maskSegmentDraft=null;this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.maskCoverage=null;this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;this.sourceInfo=info;this.pendingHDR=null;this.state.sourceColourConfirmed=false;if(!info.resolved_colour){this.state.sourceColour="srgb_display";this.state.colourPipeline="sdr_sdr";this.state.processingSpace="SDR (sRGB)";this.state.outputMode="SDR video";this.$("colour").value=this.state.sourceColour;this.$("processing").value=this.state.processingSpace;this.$("output").value=this.state.outputMode;}if(info.resolved_colour){this.state.sourceColour=info.resolved_colour;this.$('colour').value=info.resolved_colour;this.state.colourPipeline=['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(info.resolved_colour)?'hdr_hdr':'sdr_sdr';this.state.processingSpace=this.state.colourPipeline==='hdr_hdr'?'HDR (ACEScct)':'SDR (sRGB)';this.state.outputMode=this.state.colourPipeline==='hdr_hdr'?'EXR + HLG video':'SDR video';this.$('processing').value=this.state.processingSpace;this.$('output').value=this.state.outputMode;}this.state.mask='';this.maskInfo=null;this.state.anchors=[];this.selected=-1;this.state.startFrame=0;this.state.frameCount=Math.min(81,info.frames);this.playhead=0;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.$('start').value=0;this.$('count').value=this.state.frameCount;this.renderAnchors();this.changed();this.preview('source');this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;added=true;}
 
     catch(e){this.message(this.requestError(e));}finally{this.picking=false;this.save();this.render();}
 
@@ -286,7 +288,7 @@ export class PaintoutWorkspace{
 
   requestError(e){return /404|405|not found|could not complete this request/i.test(e.message)?'Restart ComfyUI after your current work finishes to enable the new Paintout browser.':e.message;}
 
-  async resetSource(){if(this.busy())return false;try{await this.editor?.flushManual();await this.editor?.persist();}catch(e){this.message(e.message);return false;}this.state.source='';this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.mask='';this.state.anchors=[];this.sourceInfo=this.maskInfo=null;this.selected=-1;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.renderAnchors();this.changed();this.preview('source');return true;}
+  async resetSource(){if(this.busy())return false;try{await this.editor?.flushManual();await this.editor?.persist();}catch(e){this.message(e.message);return false;}this.state.source='';this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.mask='';this.state.anchors=[];this.sourceInfo=this.maskInfo=null;this.pendingHDR=null;this.selected=-1;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.renderAnchors();this.changed();this.preview('source');return true;}
 
   async reset(){if(this.busy())return;if(!await this.resetSource())return;this.items=[];this.state.startFrame=0;this.state.frameCount=81;this.playhead=0;this.$('start').value=0;this.$('count').value=81;this.save();this.render();}
 
@@ -427,7 +429,7 @@ export class PaintoutWorkspace{
 
     this.$('size-help').textContent=`AI processing: ${c.width} × ${c.height} · ${(c.width*c.height/1e6).toFixed(2)} MP. Saved output: ${original}.`;
 
-    this.$('framing-help').textContent=(c.colourPipeline==='sdr_hdr'?'SDR repair is followed by an official LTX HDR conversion. This second generative pass can change the whole shot. ':'')+`The plate, masks and clean-frame guides share the same stretch to the nearest larger 64-pixel model grid. The result returns to the exact original dimensions at ${this.fps()} fps. No crop or letterbox.`;
+    this.$('framing-help').textContent=(c.colourPipeline==='sdr_hdr'?'First save the SDR repair, then choose Convert repaired clip to HDR. The separate HDR pass can change the whole shot. ':'')+`The plate, masks and clean-frame guides share the same stretch to the nearest larger 64-pixel model grid. The result returns to the exact original dimensions at ${this.fps()} fps. No crop or letterbox.`;
 
     this.$('scrubber').hidden=!this.sourceInfo||this.view==='result';this.$('scrub').max=this.$('frame').max=Math.max(0,(this.sourceInfo?.frames||1)-1);this.updatePlayhead();
 
@@ -453,11 +455,12 @@ export class PaintoutWorkspace{
 
     this.$('export').disabled=busy;this.$('progress').hidden=!this.job&&!this.submitting;this.$('cancel').disabled=!this.job;
 
+    this.$('hdr-stage').hidden=!this.pendingHDR;this.$('convert-hdr').disabled=busy;this.$('convert-hdr').textContent=this.pendingHDR?.failed?'Retry HDR conversion':'Convert repaired clip to HDR';this.$('hdr-stage-note').textContent=(this.pendingHDR?name(this.pendingHDR.config?.source)+' · '+this.pendingHDR.config?.frameCount+' frames. ':'')+(this.pendingHDR?.failed?'HDR conversion stopped. The repaired clip is safe. Retry HDR without repeating the repair.':'Next: convert the repaired clip to HDR. The repair is saved, so this step can be retried separately.');
     this.$('generate').disabled=busy;this.$('generate').setAttribute('aria-describedby','zps-note');this.$('generate').textContent=this.job?'Generating…':this.submitting?'Submitting…':error&&/mask section|removal mask|matching mask/i.test(error)?'Finish mask':error&&/painted clean frame|painted frame/i.test(error)?'Add clean frames':error||!availability?.ready?'Review setup':targeted?'Generate paintout':'Generate clean plate';
 
     this.$('setup').textContent=this.loading?'Checking installed models…':this.modelError||(!availability?'Open Paintout to check installed models.':availability.ready?'Required models and nodes are installed.':'Missing: '+availability.missing.join(', '));
 
-    this.$('note').textContent=error||(!availability?.ready?this.$('setup').textContent:targeted?'White removes. Black preserves. Painted frames restore the background.':'Removes people, vehicles and moving obstructions. No mask or painted frames needed.');
+    this.$('note').textContent=error||(!busy&&this.pendingHDR?'Repair saved. Next: convert to HDR.':null)||(!availability?.ready?this.$('setup').textContent:targeted?'White removes. Black preserves. Painted frames restore the background.':'Removes people, vehicles and moving obstructions. No mask or painted frames needed.');
 
     this.$('note').classList.toggle('is-error',!!error||!availability?.ready);
 
@@ -523,22 +526,38 @@ export class PaintoutWorkspace{
 
     if(invalid){this.message('Enter a valid '+(invalid.closest('label')?.firstChild?.textContent||'frame number').trim().toLowerCase()+'.');invalid.closest('details')?.setAttribute('open','');invalid.focus();return;}
 
+    if(!this.validationError&&!this.availability?.ready){this.message(this.$('setup').textContent);this.$('setup').closest('details').open=true;return;}
+
     if(this.validationError||!this.availability?.ready){const reason=this.validationError||this.$('setup').textContent;if(this.editor&&/mask section|removal mask|matching mask/i.test(reason)){await this.editor.setStage('mask');const covered=new Set(this.state.maskCoverage||[]),first=Array.from({length:this.state.frameCount},(_,i)=>this.state.startFrame+i).find(f=>!covered.has(f));if(first!=null)this.seek(first);this.editor.status(reason);return;}if(this.editor&&/painted clean frame|painted frame/i.test(reason)){await this.editor.setStage('clean');this.editor.status(reason);return;}this.message(reason);const id=/frame|range|mask.*cover/i.test(reason)?'range':/width|height|resolution|pixel/i.test(reason)?'resolution':null;if(id)this.$(id).open=true;else if(!this.availability?.ready)this.$('setup').closest('details').open=true;return;}
 
     this.submitting=true;this.message('');this.$('progress-title').textContent='Submitting clean plate';this.$('progress-detail').textContent='Sending your run to ComfyUI…';this.$('bar').removeAttribute('value');this.render();
 
     try{
 
-      const config=this.config(),graph=buildPaintoutGraph(config),response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
+      const config=this.config(),phase=paintoutColourPipeline(config)==='sdr_hdr'?'repair':'complete',graph=buildPaintoutRepairGraph(config),response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
 
       if(!response.prompt_id)throw new Error('ComfyUI did not confirm this run. Check the queue before retrying.');
 
-      this.job={id:response.prompt_id,started:Date.now(),config,previewMethod:'auto',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
+      this.job={id:response.prompt_id,started:Date.now(),config,phase,previewMethod:'auto',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
 
       this.$('progress-title').textContent='Queued';this.$('progress-detail').textContent='Waiting for ComfyUI to start';this.sampleStarted=null;this.progressSnapshot=null;this.save();this.startPolling();
 
     }catch(e){this.message('Could not start paintout: '+e.message);}finally{this.submitting=false;this.render();}
 
+  }
+
+  async convertHDR(){
+    if(this.busy()||!this.pendingHDR)return;
+    const pending=this.pendingHDR;
+    this.submitting=true;this.message('');this.$('progress-title').textContent='Submitting HDR conversion';this.$('progress-detail').textContent='Using the saved repaired clip';this.$('bar').removeAttribute('value');this.render();
+    try{
+      const graph=buildPaintoutHDRGraph(pending.config,pending.savedSequence);
+      const response=await this.fetch('/prompt',{prompt:graph,client_id:this.api.clientId,extra_data:{zura_paintout:true,preview_method:'auto'}});
+      if(!response.prompt_id)throw new Error('ComfyUI did not confirm HDR conversion. Check the queue before retrying.');
+      this.job={id:response.prompt_id,started:Date.now(),config:pending.config,phase:'hdr',savedSequence:pending.savedSequence,previewMethod:'auto',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
+      this.$('progress-title').textContent='Queued · HDR conversion';this.$('progress-detail').textContent='The repaired clip is saved';this.sampleStarted=null;this.progressSnapshot=null;this.save();this.startPolling();
+    }catch(e){pending.failed=true;this.save();this.message('Could not start HDR conversion: '+e.message+' The repaired clip is safe.');}
+    finally{this.submitting=false;this.render();}
   }
 
   startPolling(){if(this.timer)return;this.timer=setInterval(()=>this.poll(),1500);this.poll();}
@@ -547,9 +566,25 @@ export class PaintoutWorkspace{
 
   async poll(){if(!this.job||this.polling)return;const job=this.job;this.polling=true;try{const history=await this.fetch('/history/'+encodeURIComponent(job.id)),entry=history[job.id];if(this.job!==job)return;if(this.connectionLost){this.message('');this.connectionLost=false;}if(entry?.status?.completed||entry?.status?.status_str==='error'){
 
-      const files=entry.outputs?.save?.images||[],file=files.find(f=>/motion_preview/.test(f.filename))||files.find(f=>/SDR/.test(f.filename))||files[0];this.job=null;this.nativeSamplePreview?.clear();this.stopPolling();if(file){this.result={file,master:files.find(f=>! /motion_preview/.test(f.filename))||file,config:job.config,saved:entry.outputs?.save?.text?.join('\n')||''};this.items.unshift(this.result);this.items=this.items.slice(0,12);this.preview('result');this.message(job.config.outputMode.includes('EXR')?this.result.saved:'');}else {const failure=entry.status.messages?.find(m=>m[0]==='execution_error')?.[1],interrupted=entry.status.messages?.some(m=>m[0]==='execution_interrupted');this.message(interrupted?'Paintout cancelled. Your previous results are safe.':failure?'Paintout stopped · '+(job.stages?.[failure.node_id]||failure.node_type||'Processing')+': '+failure.exception_message:'No motion preview was saved. Check ComfyUI for the export details.');}this.save();this.render();
+      const repair=job.phase==='repair',output=entry.outputs?.[repair?'repair_save':'save']||{},files=output.images||[],file=files.find(f=>/motion_preview/.test(f.filename))||files.find(f=>/SDR/.test(f.filename))||files[0];
+      const succeeded=entry.status.status_str==='success',checkpoint=output.zura_saved_sequence?.[0]||output.text?.map(text=>/^Saved \d+ frames: (.+)$/s.exec(text)?.[1]).find(Boolean);
+      this.job=null;this.nativeSamplePreview?.clear();this.stopPolling();
+      if(repair&&succeeded&&checkpoint){
+        this.pendingHDR={config:job.config,savedSequence:checkpoint,failed:false};
+        if(file){this.result={file,master:files.find(f=>!/motion_preview/.test(f.filename))||file,config:job.config,saved:output.text?.join('\n')||'',stage:'repair'};this.items.unshift(this.result);this.items=this.items.slice(0,12);this.preview('result');}
+        this.message('Repair saved. Next: convert to HDR.');
+      }else if(file&&succeeded){
+        this.result={file,master:files.find(f=>!/motion_preview/.test(f.filename))||file,config:job.config,saved:output.text?.join('\n')||''};this.items.unshift(this.result);this.items=this.items.slice(0,12);this.preview('result');
+        if(job.phase==='hdr'&&this.pendingHDR?.savedSequence===job.savedSequence)this.pendingHDR=null;
+        this.message(job.config.outputMode.includes('EXR')?this.result.saved:'');
+      }else{
+        const failure=entry.status.messages?.find(m=>m[0]==='execution_error')?.[1],interrupted=entry.status.messages?.some(m=>m[0]==='execution_interrupted');
+        if(job.phase==='hdr'&&this.pendingHDR)this.pendingHDR.failed=true;
+        this.message(repair&&succeeded?'Repair finished, but its saved checkpoint was not returned. Check the ComfyUI output folder.':interrupted?(job.phase==='hdr'?'HDR conversion cancelled. The repaired clip is saved; retry HDR when ready.':'Paintout cancelled. Your previous results are safe.'):failure?(job.phase==='hdr'?'HDR conversion stopped':'Paintout stopped')+' · '+(job.stages?.[failure.node_id]||failure.node_type||'Processing')+': '+failure.exception_message:'No motion preview was saved. Check ComfyUI for the export details.');
+      }
+      this.save();this.render();
 
-    }else{const queue=await this.fetch('/queue');if(this.job!==job)return;const running=queue.queue_running?.some(r=>r[1]===job.id),pending=queue.queue_pending?.some(r=>r[1]===job.id);if(!running&&!pending){this.job=null;this.nativeSamplePreview?.clear();this.stopPolling();this.save();this.message('This run is no longer in ComfyUI’s queue. It has not been resubmitted.');this.render();}else {if(running&&this.$('progress-title').textContent==='Queued')this.$('progress-title').textContent=this.job.stages?.[this.job.currentNode]||'Starting paintout';const position=queue.queue_pending?.findIndex(r=>r[1]===job.id);this.$('progress-detail').textContent=running?this.elapsed():`Queue position ${(position??0)+1} · Waiting for ComfyUI · ${this.elapsed()}`;}}}
+    }else{const queue=await this.fetch('/queue');if(this.job!==job)return;const running=queue.queue_running?.some(r=>r[1]===job.id),pending=queue.queue_pending?.some(r=>r[1]===job.id);if(!running&&!pending){if(job.phase==='hdr'&&this.pendingHDR)this.pendingHDR.failed=true;this.job=null;this.nativeSamplePreview?.clear();this.stopPolling();this.save();this.message('This run is no longer in ComfyUI’s queue. It has not been resubmitted.');this.render();}else {if(running&&this.$('progress-title').textContent==='Queued')this.$('progress-title').textContent=this.job.stages?.[this.job.currentNode]||'Starting paintout';const position=queue.queue_pending?.findIndex(r=>r[1]===job.id);this.$('progress-detail').textContent=running?this.elapsed():`Queue position ${(position??0)+1} · Waiting for ComfyUI · ${this.elapsed()}`;}}}
 
     catch{this.connectionLost=true;this.message('Connection interrupted. Reconnecting to your saved run…');}finally{this.polling=false;}}
 

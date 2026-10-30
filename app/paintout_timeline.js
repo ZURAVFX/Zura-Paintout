@@ -10,9 +10,9 @@ export class PaintoutTimeline{
     this.windowSize=Infinity;this.windowStart=0;this.dragging=false;
     this.root=el('section','zp-editor-timeline');this.root.setAttribute('aria-label','Paintout source timeline');
     this.header=el('div','zp-editor-timeline__header');this.title=el('strong','', 'Source timeline');
-    this.zoomOut=el('button','zp-editor-icon-button','−');this.zoomOut.type='button';this.zoomOut.setAttribute('aria-label','Zoom out timeline');
-    this.zoomIn=el('button','zp-editor-icon-button','+');this.zoomIn.type='button';this.zoomIn.setAttribute('aria-label','Zoom in timeline');
-    this.zoomValue=el('span','zp-editor-timeline__zoom','100%');this.addFrame=el('button','zp-editor-add-frame');this.addFrame.type='button';this.addFrame.innerHTML=maskIcons['circle-plus']+'<span>Add clean frame</span>';this.addFrame.title='Add a clean frame at the playhead (K)';this.addFrame.onclick=()=>{if(!this.state.busy)this.callbacks.onCreate(this.state.playhead);};this.header.append(this.title,this.addFrame,this.zoomOut,this.zoomValue,this.zoomIn);
+    this.zoomOut=el('button','zp-editor-icon-button');this.zoomOut.innerHTML=maskIcons.minus;this.zoomOut.type='button';this.zoomOut.setAttribute('aria-label','Zoom out timeline');this.zoomOut.title='Zoom out timeline';
+    this.zoomIn=el('button','zp-editor-icon-button');this.zoomIn.innerHTML=maskIcons.plus;this.zoomIn.type='button';this.zoomIn.setAttribute('aria-label','Zoom in timeline');this.zoomIn.title='Zoom in timeline';
+    this.zoomValue=el('span','zp-editor-timeline__zoom','100%');this.addFrame=el('button','zp-editor-add-frame');this.addFrame.type='button';this.addFrame.innerHTML=maskIcons['image-plus']+'<span>Add clean frame</span>';this.addFrame.title='Add a clean frame at the playhead (K)';this.addFrame.onclick=()=>{if(!this.state.busy)this.callbacks.onCreate(this.state.playhead);};this.header.append(this.title,this.addFrame,this.zoomOut,this.zoomValue,this.zoomIn);
     this.addMask=el('button','zp-editor-add-frame');this.addMask.type='button';this.addMask.innerHTML=maskIcons['circle-plus']+'<span>Add mask</span>';this.addMask.onclick=()=>{if(!this.state.busy)this.callbacks.onAddMask();};this.header.insertBefore(this.addMask,this.addFrame);
     this.maskLanes=el('div','zp-editor-mask-lanes');this.maskLanes.setAttribute('aria-label','Mask segments. Drag either end to trim.');
     this.lanes=el('div','zp-editor-timeline__lanes');
@@ -91,6 +91,7 @@ export class PaintoutTimeline{
     this.windowStart=Math.max(this.domainStart,Math.min(this.domainEnd-this.windowSize,this.state.playhead-Math.floor(this.windowSize/2)));this.render();
   }
   onKeydown(event){
+    if(this.state.busy)return;
     if(event.defaultPrevented||event.target.matches('input,textarea,select,[contenteditable=true]'))return;
     if(this.state.stage==='clean'&&event.key.toLowerCase()==='k'&&!event.ctrlKey&&!event.metaKey&&!this.state.busy){event.preventDefault();this.callbacks.onCreate(this.state.playhead);return;}
     if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();this.seek(this.state.playhead+(event.key==='ArrowLeft'?-1:1));}
@@ -140,7 +141,7 @@ export class PaintoutTimeline{
         handle.onkeydown=event=>{if(this.state.busy||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const current=edge==='in'?segment.start:segment.end;const frame=event.key==='Home'?segment.available_start:event.key==='End'?segment.available_end:current+(event.key==='ArrowLeft'?-1:1)*(event.shiftKey?10:1);this.callbacks.onMaskTrim(segment.id,...range(frame));};
         bar.append(handle);if(edge==='in')bar.append(pick);
       }
-      const remove=el('button','zp-editor-mask-remove','×');remove.type='button';remove.disabled=this.state.busy;remove.setAttribute('aria-label',`Remove ${segment.name}`);remove.onclick=()=>this.callbacks.onSegmentRemove(segment.id);
+      const remove=el('button','zp-editor-mask-remove');remove.innerHTML=maskIcons.trash;remove.type='button';remove.disabled=this.state.busy;remove.setAttribute('aria-label',`Remove ${segment.name}`);remove.title=`Remove ${segment.name}`;remove.onclick=()=>this.callbacks.onSegmentRemove(segment.id);
       lane.append(bar);row.append(lane,remove);this.maskLanes.append(row);
     }
   }
@@ -155,7 +156,7 @@ export class PaintoutTimeline{
       const image=el('img','zp-editor-frame-card__image');image.alt='';image.loading='lazy';image.draggable=false;const src=typeof thumbnail==='function'?thumbnail(anchor):anchor.thumbnail||anchor.url||anchor.file;if(src)image.src=src;image.onerror=()=>{image.removeAttribute('src');image.classList.add('is-unavailable');};
       const state=outsideTrim?'Outside trim':anchor.enabled===false?'Disabled':anchor.status==='accepted'?'Ready':anchor.status==='needs_review'?'Review':anchor.status==='failed'?'Failed':anchor.status==='generating'?'Working':'Draft';
       const meta=el('span','zp-editor-frame-card__meta');meta.append(el('strong','',String(frame)),el('small','',state));pick.append(image,meta);pick.onclick=event=>{event.stopPropagation();this.callbacks.onSelect(index);};
-      const remove=el('button','zp-editor-frame-card__remove','×');remove.type='button';remove.disabled=busy;remove.setAttribute('aria-label',`Remove clean frame at source frame ${frame}`);remove.onclick=event=>{event.stopPropagation();this.callbacks.onRemove(index);};
+      const remove=el('button','zp-editor-frame-card__remove');remove.innerHTML=maskIcons.x;remove.type='button';remove.disabled=busy;remove.setAttribute('aria-label',`Remove clean frame at source frame ${frame}`);remove.title=`Remove clean frame at source frame ${frame}`;remove.onclick=event=>{event.stopPropagation();this.callbacks.onRemove(index);};
       card.append(pick,remove);this.cards.append(card);
     });
     this.cards.style.height=`${82*(tallest+1)}px`;this.cleanLane.style.minHeight=`${108+82*tallest}px`;

@@ -21,3 +21,11 @@ Representative final demos, independent-machine installation and final artist ac
 ## Post-Registry development fixes, 29 October 2026
 
 The current GitHub development build fixes a small brightness shift when decoding native 8-bit RGB video. It decodes these formats directly rather than converting them through FFmpeg's RGB16 path. YUV and higher-depth video retain 16-bit decoding. Cache keys distinguish the new representation. Regression tests cover exact levels, trim order, both cache and pipe reads, and RGB16 precision. Registry 0.1.0 predates this change; no new Registry version is claimed here.
+
+## HDR conversion staging and streaming development, 30 October 2026
+
+Studio now saves the SDR repair before offering **Convert repaired clip to HDR**. The saved checkpoint supports HDR-only retry and survives browser reload. The complete native graph remains available for direct ComfyUI use. Cached model weights are unloaded before conversion; this does not guarantee that every VRAM allocation is cleared.
+
+Streaming TiledFusion keeps the original output raster, frame rate and selected frame count. The 121-source-frame cap remains. The 40-million pixel-frame guide-encoding guard now applies per 9- or 17-frame window; a separate 8 GiB guard bounds the CPU guide allocation. No automatic smaller processing proxy is used. This streaming route has not yet passed a GPU render test.
+
+Generated clean-frame results are used automatically as paint layers. Individual deletion removes one edit; **Remove all paint layers** restores the original frame. Named-target FLUX instructions use the original crop reference, while generic painted-area cleanup uses an erased reference. The controlled car test is not a promise of arbitrary-shot removal quality.

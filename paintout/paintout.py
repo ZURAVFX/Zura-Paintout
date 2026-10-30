@@ -680,7 +680,7 @@ class ZuraPaintoutUncrop:
         metadata=dict(plate={k:v for k,v in plate.items() if not k.startswith('_')},precision=precision,match_context=match_context,colour_fits=metrics,notes='RGB only. Source alpha/AOV/header metadata are not copied. Video exports copy source audio when present, trimmed to the selected range. Sequence fps is authoritative.')
         (target/'paintout.json').write_text(json.dumps(metadata,indent=2),encoding='utf-8')
         previews=delivery.finish()
-        return {'ui':{'text':[f'Saved {plate["count"]} frames: {target}'],**previews},'result':(str(target),)}
+        return {'ui':{'text':[f'Saved {plate["count"]} frames: {target}'], 'zura_saved_sequence':[str(target)], **previews},'result':(str(target),)}
 
 class ZuraPaintoutExportFrames:
     @classmethod

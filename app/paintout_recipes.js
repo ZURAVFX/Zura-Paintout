@@ -41,6 +41,16 @@ const hdrSource=c=>['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709
 const normalise=c=>({mode:'targeted',startFrame:0,frameCount:81,sequenceFps:25,sourceColour:'srgb_display',processingSpace:'SDR (sRGB)',width:1152,height:640,outputMode:'SDR video',savePrefix:'paintout/studio',exrPrecision:'float32',keepAudio:true,seed:42,maskBlockSize:32,...c});
 
 /** Returns an actionable message, or an empty string when ready to queue. */
+export function paintoutHDRFrameLimit(c){
+  const width=Math.ceil(Number(c.sourceWidth||c.width)/64)*64,height=Math.ceil(Number(c.sourceHeight||c.height)/64)*64;
+  if(!Number.isFinite(width*height)||width<=0||height<=0||Math.max(width,height)>4096)return 0;
+  // Streaming still encodes a full-resolution temporal window. The backend
+  // caps that window at 17 frames (or 9 for larger plates), not the whole shot.
+  if(width*height*9>40000000)return 0;
+  const cpuFrames=Math.floor((8*1024**3)/(width*height*3*4));
+  return Math.min(121,Math.floor((cpuFrames-1)/8)*8+1);
+}
+
 export function paintoutValidation(config={}){
   const c=normalise(config);
   if(!['targeted','full'].includes(c.mode))return 'Choose targeted paintout or a full-scene clean plate.';
@@ -61,8 +71,8 @@ export function paintoutValidation(config={}){
   if(pipeline==='sdr_sdr'&&c.outputMode.includes('HLG'))return 'Choose SDR to HDR for a real HDR conversion; HLG tags alone do not expand SDR.';
   if(pipeline!=='sdr_sdr'&&c.outputMode.includes('SDR'))return 'Choose HLG video, EXR sequence or EXR + HLG video for HDR delivery.';
   if(pipeline==='sdr_hdr'){
-    const length=Math.max(9,Math.ceil((Number(c.frameCount)-1)/8)*8+1);
-    if(c.frameCount>121||c.width*c.height*length>40000000)return 'SDR to HDR currently supports 121 frames and 40 million padded pixel-frames. Trim a shorter range; the original raster is preserved.';
+    const limit=paintoutHDRFrameLimit(c);
+    if(c.frameCount>limit)return `SDR to HDR supports ${limit} frames at this plate size (streaming HDR memory limits). This clip has ${c.frameCount} frames. Keep SDR output for the full clip, or trim a shorter clip for HDR.`;
   }
   if(!PAINTOUT_OUTPUT_MODES.includes(c.outputMode))return 'Choose a supported video or EXR export.';
   if(!['float32','float16'].includes(c.exrPrecision))return 'Choose float32 or float16 EXR precision.';
@@ -112,7 +122,7 @@ export function buildPaintoutGraph(config={}){
   const ref=(id,slot=0)=>[id,slot],node=(id,class_type,inputs)=>{g[id]={class_type,inputs,_meta:{title:paintoutStages[id]||id}};};
   const projectMask=targeted&&c.maskProject&&Number.isInteger(c.maskRevision);
   if(projectMask)node('mask_source','ZuraPaintoutMaskSource',{project:c.maskProject,revision:c.maskRevision});
-  if(c.colourPipeline)node('colour_check','ZuraPaintoutColourCheck',{source:c.source,colour_space:c.sourceColour,pipeline:c.colourPipeline,frame_count:Number(c.frameCount)});
+  if(c.colourPipeline)node('colour_check','ZuraPaintoutColourCheck',{source:c.source,colour_space:c.sourceColour,pipeline:c.colourPipeline,frame_count:Number(c.frameCount),...(paintoutColourPipeline(c)==='sdr_hdr'?{sampling_mode:'tiled_fusion'}:{})});
   node('source',targeted?(projectMask?'ZuraPaintoutEditorCrop':'ZuraPaintoutCrop'):'ZuraPaintoutFullFrame',{
     plate_path:c.colourPipeline?ref('colour_check'):c.source,...(targeted?{mask_path:projectMask?ref('mask_source'):c.mask}:{}),colour_space:c.sourceColour,
     start_frame:Number(c.startFrame),frame_count:Number(c.frameCount),sequence_fps:Number(c.sequenceFps),
@@ -152,7 +162,11 @@ export function buildPaintoutGraph(config={}){
   node('crop_guides','LTXVCropGuides',{positive:ref(conditioned),negative:ref(conditioned,1),latent:ref('separate')});
   node('decode','VAEDecodeTiled',{samples:ref('crop_guides',2),vae:ref('float_vae'),tile_size:512,overlap:64,temporal_size:128,temporal_overlap:32});
   node('save','ZuraPaintoutUncrop',{decoded_crop:ref('decode'),plate:ref('source',2),output_name:c.savePrefix,precision:c.exrPrecision,match_context:targeted,export_format:c.outputMode,motion_preview:true});
-  if(paintoutColourPipeline(c)==='sdr_hdr')appendHDRConversion(g,c);
+  if(paintoutColourPipeline(c)==='sdr_hdr'){
+    g.repair_save=g.save;delete g.save;
+    Object.assign(g.repair_save.inputs,{export_format:'EXR sequence',motion_preview:false});
+    if(!c.separateHDR)appendHDRConversion(g,c,['repair_save',0],['source',2]);
+  }
   return g;
 }
 
@@ -171,33 +185,46 @@ export function paintoutAvailability(info={},mode='targeted',config={}){
   if(paintoutColourPipeline(config)==='sdr_hdr'){
     if(!options('VAELoader','vae_name').includes(PAINTOUT_MODELS.hdrVideoVae))missing.push(PAINTOUT_MODELS.hdrVideoVae);
     for(const [type,key,file] of [['LTXICLoRALoaderModelOnly','lora_name',PAINTOUT_MODELS.hdrLora],['ZuraPaintoutHDRConditioning','file_name',PAINTOUT_MODELS.hdrEmbeddings]])if(!options(type,key).includes(file))missing.push(file);
-    for(const type of ['ZuraPaintoutHDRPrepare','ZuraPaintoutHDRSave','ZuraPaintoutHDRConditioning','LTXAddVideoICLoRAGuide','ManualSigmas','SamplerCustomAdvanced','CFGGuider','KSamplerSelect','RandomNoise'])if(!info[type])missing.push(type);
+    for(const type of ['ZuraPaintoutHDRPrepare','ZuraPaintoutHDRSave','ZuraPaintoutHDRConditioning','ZuraPaintoutHDRResume','LTXAddVideoICLoRAGuide','ManualSigmas','LTXVTiledFusionSampler','KSamplerSelect'])if(!info[type])missing.push(type);
   }
   return {ready:!missing.length,missing:[...new Set(missing)]};
 }
 
-// Official LTX 2.5 SDR-to-HDR pass, after the masked SDR repair is composited.
-function appendHDRConversion(g,c){
+/** Queue only the repair; its EXR checkpoint can feed a fresh HDR queue. */
+export function buildPaintoutRepairGraph(config={}){
+  return buildPaintoutGraph({...config,separateHDR:true});
+}
+
+/** Independent HDR queue. Resume validates the persisted checkpoint and frees
+ * cached repair models before loading the conversion model. */
+export function buildPaintoutHDRGraph(config={},savedSequence){
+  const c=normalise(config);
+  if(paintoutColourPipeline(c)!=='sdr_hdr')throw new Error('Choose SDR to HDR for the HDR conversion step.');
+  const error=paintoutValidation(c);if(error)throw new Error(error);
+  if(!absolutePath(savedSequence))throw new Error('Choose the saved SDR repair checkpoint.');
+  const g={
+    hdr_resume:{class_type:'ZuraPaintoutHDRResume',inputs:{saved_sequence:savedSequence},_meta:{title:'Resuming saved SDR repair and releasing repair models'}},
+  };
+  appendHDRConversion(g,c,['hdr_resume',0],['hdr_resume',1]);
+  return g;
+}
+
+// Official LTX 2.5 HDR adapter, using streaming TiledFusion at source raster.
+// The guide must remain spatially untiled; fusion crops appended guide frames.
+function appendHDRConversion(g,c,savedSequence,plate){
   const r=(id,slot=0)=>[id,slot],n=(id,class_type,inputs,title)=>{g[id]={class_type,inputs,_meta:{title}};};
-  g.repair_save=g.save;delete g.save;
-  Object.assign(g.repair_save.inputs,{export_format:'EXR sequence',motion_preview:false});
-  n('hdr_prepare','ZuraPaintoutHDRPrepare',{saved_sequence:r('repair_save'),plate:r('source',2)},'Preparing repaired SDR for HDR');
+  n('hdr_prepare','ZuraPaintoutHDRPrepare',{saved_sequence:savedSequence,plate,sampling_mode:'tiled_fusion',model_name:PAINTOUT_MODELS.model,...(g.repair_save?{release_models:true}:{})},'Preparing repaired SDR for HDR');
+  n('hdr_model','UNETLoader',{unet_name:r('hdr_prepare',7),weight_dtype:'default'},'Loading HDR model after repair memory release');
   n('hdr_vae_loader','VAELoader',{vae_name:PAINTOUT_MODELS.hdrVideoVae},'Loading HDR video VAE');
   n('hdr_vae','LTXVVAEForceFloat32',{vae:r('hdr_vae_loader')},'Preparing HDR float32 VAE');
-  n('hdr_lora','LTXICLoRALoaderModelOnly',{model:r('model'),lora_name:PAINTOUT_MODELS.hdrLora,strength_model:1},'Loading SDR to HDR adapter');
+  n('hdr_lora','LTXICLoRALoaderModelOnly',{model:r('hdr_model'),lora_name:PAINTOUT_MODELS.hdrLora,strength_model:1},'Loading SDR to HDR adapter');
   n('hdr_conditioning','ZuraPaintoutHDRConditioning',{file_name:PAINTOUT_MODELS.hdrEmbeddings},'Loading HDR scene embeddings');
   n('hdr_condition','LTXVConditioning',{positive:r('hdr_conditioning'),negative:r('hdr_conditioning'),frame_rate:r('hdr_prepare',5)},'Preparing HDR conditioning');
   n('hdr_latent','EmptyLTXVLatentVideo',{width:r('hdr_prepare',2),height:r('hdr_prepare',3),length:r('hdr_prepare',4),batch_size:1},'Preparing HDR samples');
-  n('hdr_guide','LTXAddVideoICLoRAGuide',{positive:r('hdr_condition'),negative:r('hdr_condition',1),vae:r('hdr_vae'),latent:r('hdr_latent'),image:r('hdr_prepare'),frame_idx:0,strength:1,latent_downscale_factor:r('hdr_lora',1),crop:'disabled',use_tiled_encode:false,tile_size:256,tile_overlap:64},'Encoding repaired SDR guide');
-  n('hdr_audio','LTXVEmptyLatentAudio',{audio_vae:r('audio_vae'),frames_number:r('hdr_prepare',4),frame_rate:r('hdr_prepare',5),batch_size:1},'Preparing HDR audio samples');
-  n('hdr_av','LTXVConcatAVLatent',{video_latent:r('hdr_guide',2),audio_latent:r('hdr_audio')},'Preparing HDR samples');
-  n('hdr_guider','CFGGuider',{model:r('hdr_lora'),positive:r('hdr_guide'),negative:r('hdr_guide',1),cfg:1},'Preparing HDR guidance');
-  n('hdr_noise','RandomNoise',{noise_seed:Number(c.seed)},'Preparing HDR noise');
+  n('hdr_guide','LTXAddVideoICLoRAGuide',{positive:r('hdr_condition'),negative:r('hdr_condition',1),vae:r('hdr_vae'),latent:r('hdr_latent'),image:r('hdr_prepare'),frame_idx:0,strength:1,latent_downscale_factor:r('hdr_lora',1),crop:'disabled',use_tiled_encode:false,tile_size:256,tile_overlap:64,use_streaming:true,tile_frames:r('hdr_prepare',6)},'Encoding repaired SDR guide in temporal windows');
   n('hdr_sampler','KSamplerSelect',{sampler_name:'euler'},'Preparing HDR sampler');
   n('hdr_sigmas','ManualSigmas',{sigmas:'1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0'},'Preparing official HDR schedule');
-  n('hdr_sample','SamplerCustomAdvanced',{noise:r('hdr_noise'),guider:r('hdr_guider'),sampler:r('hdr_sampler'),sigmas:r('hdr_sigmas'),latent_image:r('hdr_av')},'Converting the repaired shot to HDR');
-  n('hdr_separate','LTXVSeparateAVLatent',{av_latent:r('hdr_sample')},'Preparing HDR decode');
-  n('hdr_crop','LTXVCropGuides',{positive:r('hdr_guide'),negative:r('hdr_guide',1),latent:r('hdr_separate')},'Removing HDR guides');
-  n('hdr_decode','VAEDecodeTiled',{samples:r('hdr_crop',2),vae:r('hdr_vae'),tile_size:512,overlap:64,temporal_size:128,temporal_overlap:32},'Decoding HDR');
+  n('hdr_sample','LTXVTiledFusionSampler',{model:r('hdr_lora'),positive:r('hdr_guide'),negative:r('hdr_guide',1),latents:r('hdr_guide',2),sigmas:r('hdr_sigmas'),sampler:r('hdr_sampler'),seed:Number(c.seed),cfg:1,tile_width:1024,tile_height:576,overlap_frac:.5,blend_var:.05,grid_cycle:1,tile_frames:r('hdr_prepare',6),vae:r('hdr_vae'),canvas_device:'cpu'},'Converting the repaired shot to HDR');
+  n('hdr_decode','VAEDecodeTiled',{samples:r('hdr_sample'),vae:r('hdr_vae'),tile_size:512,overlap:64,temporal_size:32,temporal_overlap:8},'Decoding HDR');
   n('save','ZuraPaintoutHDRSave',{images:r('hdr_decode'),take:r('hdr_prepare',1),output_name:c.savePrefix,precision:c.exrPrecision,export_format:c.outputMode},'Saving HDR at original resolution and frame rate');
 }

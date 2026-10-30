@@ -5,7 +5,8 @@
       "source": "C:/path/to/plate.mp4",
       "colour_space": "srgb_display",
       "pipeline": "sdr_hdr",
-      "frame_count": 9
+      "frame_count": 9,
+      "sampling_mode": "tiled_fusion"
     },
     "_meta": {
       "title": "colour_check"
@@ -466,10 +467,26 @@
       "plate": [
         "source",
         2
-      ]
+      ],
+      "sampling_mode": "tiled_fusion",
+      "model_name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "release_models": true
     },
     "_meta": {
       "title": "Preparing repaired SDR for HDR"
+    }
+  },
+  "hdr_model": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": [
+        "hdr_prepare",
+        7
+      ],
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Loading HDR model after repair memory release"
     }
   },
   "hdr_vae_loader": {
@@ -497,7 +514,7 @@
     "class_type": "LTXICLoRALoaderModelOnly",
     "inputs": {
       "model": [
-        "model",
+        "hdr_model",
         0
       ],
       "lora_name": "ltx-2.5-22b-ic-lora-sdr-to-hdr-1.0.safetensors",
@@ -589,77 +606,15 @@
       "crop": "disabled",
       "use_tiled_encode": false,
       "tile_size": 256,
-      "tile_overlap": 64
-    },
-    "_meta": {
-      "title": "Encoding repaired SDR guide"
-    }
-  },
-  "hdr_audio": {
-    "class_type": "LTXVEmptyLatentAudio",
-    "inputs": {
-      "audio_vae": [
-        "audio_vae",
-        0
-      ],
-      "frames_number": [
+      "tile_overlap": 64,
+      "use_streaming": true,
+      "tile_frames": [
         "hdr_prepare",
-        4
-      ],
-      "frame_rate": [
-        "hdr_prepare",
-        5
-      ],
-      "batch_size": 1
-    },
-    "_meta": {
-      "title": "Preparing HDR audio samples"
-    }
-  },
-  "hdr_av": {
-    "class_type": "LTXVConcatAVLatent",
-    "inputs": {
-      "video_latent": [
-        "hdr_guide",
-        2
-      ],
-      "audio_latent": [
-        "hdr_audio",
-        0
+        6
       ]
     },
     "_meta": {
-      "title": "Preparing HDR samples"
-    }
-  },
-  "hdr_guider": {
-    "class_type": "CFGGuider",
-    "inputs": {
-      "model": [
-        "hdr_lora",
-        0
-      ],
-      "positive": [
-        "hdr_guide",
-        0
-      ],
-      "negative": [
-        "hdr_guide",
-        1
-      ],
-      "cfg": 1
-    },
-    "_meta": {
-      "title": "Preparing HDR guidance"
-    }
-  },
-  "hdr_noise": {
-    "class_type": "RandomNoise",
-    "inputs": {
-      "noise_seed": 42
-    },
-    "_meta": {
-      "title": "Preparing HDR noise"
+      "title": "Encoding repaired SDR guide in temporal windows"
     }
   },
   "hdr_sampler": {
@@ -681,48 +636,12 @@
     }
   },
   "hdr_sample": {
-    "class_type": "SamplerCustomAdvanced",
+    "class_type": "LTXVTiledFusionSampler",
     "inputs": {
-      "noise": [
-        "hdr_noise",
+      "model": [
+        "hdr_lora",
         0
       ],
-      "guider": [
-        "hdr_guider",
-        0
-      ],
-      "sampler": [
-        "hdr_sampler",
-        0
-      ],
-      "sigmas": [
-        "hdr_sigmas",
-        0
-      ],
-      "latent_image": [
-        "hdr_av",
-        0
-      ]
-    },
-    "_meta": {
-      "title": "Converting the repaired shot to HDR"
-    }
-  },
-  "hdr_separate": {
-    "class_type": "LTXVSeparateAVLatent",
-    "inputs": {
-      "av_latent": [
-        "hdr_sample",
-        0
-      ]
-    },
-    "_meta": {
-      "title": "Preparing HDR decode"
-    }
-  },
-  "hdr_crop": {
-    "class_type": "LTXVCropGuides",
-    "inputs": {
       "positive": [
         "hdr_guide",
         0
@@ -731,21 +650,45 @@
         "hdr_guide",
         1
       ],
-      "latent": [
-        "hdr_separate",
+      "latents": [
+        "hdr_guide",
+        2
+      ],
+      "sigmas": [
+        "hdr_sigmas",
         0
-      ]
+      ],
+      "sampler": [
+        "hdr_sampler",
+        0
+      ],
+      "seed": 42,
+      "cfg": 1,
+      "tile_width": 1024,
+      "tile_height": 576,
+      "overlap_frac": 0.5,
+      "blend_var": 0.05,
+      "grid_cycle": 1,
+      "tile_frames": [
+        "hdr_prepare",
+        6
+      ],
+      "vae": [
+        "hdr_vae",
+        0
+      ],
+      "canvas_device": "cpu"
     },
     "_meta": {
-      "title": "Removing HDR guides"
+      "title": "Converting the repaired shot to HDR"
     }
   },
   "hdr_decode": {
     "class_type": "VAEDecodeTiled",
     "inputs": {
       "samples": [
-        "hdr_crop",
-        2
+        "hdr_sample",
+        0
       ],
       "vae": [
         "hdr_vae",
@@ -753,8 +696,8 @@
       ],
       "tile_size": 512,
       "overlap": 64,
-      "temporal_size": 128,
-      "temporal_overlap": 32
+      "temporal_size": 32,
+      "temporal_overlap": 8
     },
     "_meta": {
       "title": "Decoding HDR"

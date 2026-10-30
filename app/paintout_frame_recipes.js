@@ -62,7 +62,8 @@ export function buildFrameEditGraph(config, info) {
     ...(config.base_file?{base_file:config.base_file,base_colour_space:config.base_colour_space||'srgb_display'}:{}),
     ...(config.project ? {project: config.project, mask_revision: Number(config.mask_revision)} : {}),
   }, 'Preparing the selected frame');
-  const target=config.named_target?frameRemovalTarget(config.prompt):'';
+  const namedInstruction=frameRemovalTarget(config.prompt);
+  const target=config.named_target?namedInstruction:'';
   if(target){
     node('frame_subject_model','CheckpointLoaderSimple',{ckpt_name:files.sam},'Loading object selection');
     node('frame_subject_text','CLIPTextEncode',{clip:ref('frame_subject_model',1),text:target},'Finding '+target);
@@ -79,8 +80,8 @@ export function buildFrameEditGraph(config, info) {
   node('frame_negative', 'CLIPTextEncode', {clip: ref('frame_text'), text: ''}, 'Preparing frame conditioning');
   node('frame_reference', 'ReferenceMultiLatent', {
     positive: ref('frame_positive'), negative: ref('frame_negative'), vae: ref('frame_vae'),
-    resolution: 'keep resolution', 'images.image0': ref('frame_crop', 6),
-  }, 'Encoding the background reconstruction reference');
+    resolution: 'keep resolution', 'images.image0': ref('frame_crop', namedInstruction&&!target?0:6),
+  }, namedInstruction&&!target?'Encoding the original image for the removal instruction':'Encoding the background reconstruction reference');
   node('frame_sample', 'KSampler', {
     model: ref('frame_model'), positive: ref('frame_reference'), negative: ref('frame_reference', 1),
     latent_image: ref('frame_reference', 2), seed, steps: 16, cfg: 1,

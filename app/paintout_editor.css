@@ -4,7 +4,7 @@
 .zp-editor-timeline button:focus-visible,.zp-editor-timeline input:focus-visible,.zp-editor-viewer:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:3px}
 .zp-editor-timeline__header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--zp-line)}
 .zp-editor-timeline__header strong{font-weight:500;flex:1}.zp-editor-timeline__zoom{font-variant-numeric:tabular-nums;min-width:40px;text-align:center;color:var(--zp-muted)}
-.zp-editor-icon-button{display:grid;place-items:center;min-width:28px;min-height:28px;border:0;background:var(--zc-hover,#26262b);border-radius:5px;font-size:18px!important}
+.zp-editor-icon-button{display:grid;place-items:center;min-width:32px;min-height:32px;border:0;background:var(--zc-hover,#26262b);border-radius:5px;font-size:18px!important}
 .zp-editor-icon-button:hover{background:var(--zp-line)}
 .zp-editor-timeline__lanes{padding:0 12px 8px}
 .zp-editor-timeline__clean-lane{position:relative;min-height:108px;padding-top:22px;cursor:crosshair}
@@ -19,7 +19,7 @@
 .zp-editor-frame-card__image{display:block;width:84px;height:43px;object-fit:cover;background:var(--zc-canvas,#101013);border-radius:4px}
 .zp-editor-frame-card__meta{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:3px 2px 0;width:100%;box-sizing:border-box}
 .zp-editor-frame-card__meta strong{font-variant-numeric:tabular-nums;font-size:11px;font-weight:500}.zp-editor-frame-card__meta small{font-size:9px;color:var(--zp-muted)}
-.zp-editor-frame-card__remove{position:absolute;top:-7px;right:-7px;display:grid;place-items:center;width:20px;height:20px;border:1px solid var(--zp-line);border-radius:50%;background:var(--zp-bg);font-size:15px;opacity:0}
+.zp-editor-frame-card__remove{position:absolute;top:-7px;right:-7px;display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--zp-line);border-radius:50%;background:var(--zp-bg);font-size:15px;opacity:1}
 .zp-editor-frame-card:hover .zp-editor-frame-card__remove,.zp-editor-frame-card:focus-within .zp-editor-frame-card__remove{opacity:1}
 .zp-editor-timeline__ruler{position:relative;height:44px;margin-inline:48px;cursor:ew-resize;background:var(--zc-canvas,#101013);border-radius:4px}
 .zp-editor-timeline__ticks{position:absolute;inset:3px 0 14px;pointer-events:none}
@@ -202,7 +202,7 @@
 .zp-editor-mask-bar__select{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding-inline:6px!important}
 .zp-editor-mask-bar__handle{flex:0 0 12px;cursor:ew-resize;touch-action:none}
 .zp-editor-mask-bar__handle:after{content:'';display:block;width:2px;height:14px;background:currentColor;opacity:.65;margin:auto}
-.zp-editor-mask-remove{width:28px;height:28px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--gs-muted,#a3a3aa);font-size:18px!important}
+.zp-editor-mask-remove{display:grid;place-items:center;width:32px;height:32px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--gs-muted,#a3a3aa);font-size:18px!important}
 .zp-editor-mask-remove:hover{background:var(--zc-hover,#26262b);color:var(--zc-text,#f2f2f0)}
 .zp-editor-mask-empty{margin:4px 0;text-align:center;color:var(--gs-muted,#a3a3aa);line-height:1.5}
 .zp-editor-tools [data-timeline-only=true]{display:none!important}
@@ -269,3 +269,8 @@
 .zp-editor-paint-layers button:hover{background:var(--gs-line,#33333d)}.zp-editor-paint-layers button:disabled{opacity:.45;cursor:default}
 .zp-editor-paint-layers button:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:2px}
 @media(max-width:500px){.zp-editor-paint-layers li{gap:8px}.zp-editor-paint-layers li img{width:48px;height:30px}}
+
+/* One Lucide family, with compact glyphs inside comfortable hit targets. */
+.zp-editor-labelled-icon{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.zp-editor-labelled-icon svg,.zp-editor-icon-button svg,.zp-editor-mask-remove svg,.zp-editor-frame-card__remove svg{width:16px;height:16px;flex:none;pointer-events:none}
+@media(pointer:coarse){.zp-editor-icon-button,.zp-editor-mask-remove,.zp-editor-frame-card__remove{min-width:40px;min-height:40px}}

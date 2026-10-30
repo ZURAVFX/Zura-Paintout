@@ -107,3 +107,12 @@
 :is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>div{position:absolute;top:calc(100% + 8px);left:0;z-index:30;width:min(300px,calc(100vw - 48px));padding:14px;background:var(--gs-panel);border:1px solid var(--gs-line);border-radius:8px;box-sizing:border-box;color:var(--zc-text)}
 :is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour select{display:block;width:100%;margin-top:8px;min-height:40px;padding:8px;background:var(--gs-input);color:var(--zc-text);border:1px solid var(--gs-line);border-radius:5px;font:inherit}
 :is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour p{color:var(--gs-muted);margin:10px 0 0;font-size:12px;line-height:1.5}
+
+
+:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;margin-top:12px;background:var(--gs-panel);border:1px solid var(--gs-line);border-radius:8px;color:var(--zc-text)}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage[hidden]{display:none}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage p{margin:5px 0 0;color:var(--gs-muted);font-size:12px;line-height:1.5}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage button{flex-shrink:0;padding:11px 16px;min-height:44px;border:0;border-radius:5px;background:var(--gs-accent);color:#151800;font:inherit;font-weight:600;cursor:pointer}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage button:disabled{opacity:.5;cursor:default}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage button:focus-visible{outline:2px solid var(--gs-accent);outline-offset:3px}
+@media(max-width:640px){:is(#zura-paintout-app,#zura-paintout-app) .zps-hdr-stage{align-items:stretch;flex-direction:column}}

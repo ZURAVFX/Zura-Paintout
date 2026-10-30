@@ -24,9 +24,17 @@ Use the model providers' files and review their access and licence requirements:
 
 Use current ComfyUI, ComfyUI-KJNodes and ComfyUI-LTXVideo with the required HDR nodes. Paintout includes its own narrow HDR scene-embedding loader, so this conversion does not depend on a locally patched LTX conditioning loader. Missing models or nodes must be resolved before generation. Model weights are not bundled.
 
+## Repair first, then convert
+
+With **SDR to HDR** selected, Studio saves the SDR repair as a checkpoint. When **Repair saved** appears, click **Convert repaired clip to HDR**. This starts a separate queued conversion. The native editable graph still contains the complete repair-and-conversion route for direct ComfyUI use.
+
+If HDR conversion fails or is cancelled, the repaired clip stays saved. Use **Retry HDR conversion** to repeat only the HDR stage. Reloading the browser restores the saved conversion checkpoint. Check the current queue before retrying after an uncertain connection; do not submit duplicate jobs. The application unloads cached model weights before HDR conversion, but execution caches or other allocations may remain, so this is not a guarantee of a complete VRAM reset.
+
 ## Clip limits and alignment
 
-SDR-to-HDR conversion currently accepts at most **121 source frames** and **40 million padded pixel-frames**. The processing raster is stretched to the next larger 64-pixel grid and the temporal length is extended to the required 8n+1 length by holding the last frame. The limit includes that padding. Final delivery restores the original dimensions, selected frame count and source frame rate. No smaller processing proxy is substituted. Trim a shorter clip when the conversion exceeds the limit.
+The Studio uses streaming TiledFusion conversion, with at most **121 source frames**. The **40-million pixel-frame** guard applies to each full-resolution guide-encoding window of **9 or 17 frames**, not to the whole clip. Temporal windows overlap and their sampled results are fused. The CPU guide allocation has a separate **8 GiB** guard. A raster that cannot fit even a nine-frame guide window is rejected; spatial denoise tiling cannot remove that guide-encoding limit.
+
+The processing raster is stretched to the next larger 64-pixel grid and the temporal length is extended to the required 8n+1 length by holding the last frame. Final delivery restores the original dimensions, selected frame count and source frame rate. No smaller processing proxy is substituted. Shorten a clip that exceeds the count or CPU allocation limit. Prepare a smaller plate separately if its raster exceeds the minimum-window limit.
 
 Trim clip defines the export section. In the Mask stage, timeline In/Out controls tracking only and cannot change export duration. Reopen Trim clip to change delivery.
 
@@ -34,10 +42,12 @@ Trim clip defines the export section. In the Mask stage, timeline In/Out control
 
 FLUX 3 Klein remains the clean-frame editor. For HDR, it edits an SDR display view; the changed region is reconstructed into a scene-linear HDR master. This reconstruction is approximate inside the edit area, not native HDR image generation. Original ACEScg pixels outside the edit and in protected areas remain exact. The PNG preview and EXR master deliberately use separate colour metadata.
 
-Inspect repaired highlights, exposure and mask joins before accepting a guide. Use externally edited HDR guides when the display-view approximation is unsuitable. No alternative HDR image model has been qualified as the default for precise production removal.
+Inspect repaired highlights, exposure and mask joins before using a guide in the render. Each FLUX result is used automatically as a paint layer; delete an unsuitable layer or use **Remove all paint layers** to restore the original frame. Use externally edited HDR guides when the display-view approximation is unsuitable. No alternative HDR image model has been qualified as the default for precise production removal.
 
 ## Validation status
 
 Automated checks cover colour transforms, HDR values, actual EXR/PNG files, output metadata, graph wiring and exact preservation outside clean-frame edits. They do not establish final image quality. Complete [manual testing](manual-testing.md) with representative SDR and HDR footage, actual model renders and a colour-managed viewer before relying on HDR delivery in production. SDR-to-HDR needs whole-frame review because its changes are not limited to the removal mask.
 
 A local nine-frame model smoke test exercised SDR-to-HDR and targeted HDR-to-HDR on an odd 257 × 145 plate at 24000/1001 fps with audio. Both completed at the original raster/count/rate. HDR-to-HDR retained outside-mask source ACEScg samples exactly and values above reference white. The synthetic SDR-to-HDR result did not produce values above reference white, so it establishes wiring and delivery rather than expanded highlight range. A colour-tag loss found during the run was fixed and the saved frames were re-exported successfully with BT.2020/HLG tags. This is a small integration test, not shot-quality approval.
+
+The streaming TiledFusion route has not yet passed a GPU render test. The small model smoke test above predates that route and does not validate its performance, seams or memory behaviour. Complete real tiled renders and inspect temporal joins before treating streaming conversion as qualified.

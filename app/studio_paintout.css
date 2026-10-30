@@ -79,3 +79,5 @@
 #zura-paintout-app #zps-note.is-error{color:var(--gs-warning);line-height:1.6}
 #zura-paintout-app #zps-note button{margin:4px 0 4px 8px;padding:7px 10px;border:1px solid var(--gs-line);border-radius:6px;background:var(--zc-hover);color:var(--zc-text);cursor:pointer}
 #zura-paintout-app .zp-page input[aria-invalid=true]{border-color:var(--gs-error);outline-color:var(--gs-error)}
+
+.zps-colour-pipeline{display:inline-flex;align-items:center;gap:8px}.zps-colour-pipeline select{font:inherit;min-height:36px;background:var(--gs-input,#222);color:inherit;border:1px solid var(--gs-line,#353535);border-radius:5px;padding:6px 10px}

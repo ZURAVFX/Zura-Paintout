@@ -53,13 +53,13 @@ Matching API graphs are included as [`targeted.api.json`](workflows/targeted.api
 
 The plate, masks and guides share a full-frame stretch to the smallest enclosing supported 64-pixel grid. For example, 1920 × 1080 processes at 1920 × 1088 and returns to 1920 × 1080. No centre crop or smaller proxy is silently substituted.
 
-Delivery restores the original plate dimensions, source frame rate and selected frame count. Image sequences use the chosen sequence frame rate. EXR delivery can preserve source pixels outside the effective repair region; encoded review video is not a pixel-identical master.
+Delivery restores the original plate dimensions, source frame rate and selected frame count. Image sequences use the chosen sequence frame rate. EXR delivery can preserve source pixels outside the effective repair region; encoded review video is not a pixel-identical master. The optional SDR-to-HDR conversion is a separate generative pass over the whole frame and can change unmasked areas. See [HDR pipelines](build/hdr.md) for the three colour routes, extra model files and validation limits.
 
 ## Run the optional app
 
 After installing the same node pack, choose **Open Zura Paintout** from ComfyUI's command search, use its visible **Zura Paintout** button, or add `?paintout=1` to your own ComfyUI URL. With integrated Zura Nodes, use **Paintout Studio** instead.
 
-The interface supplies an interactive timeline, hard-mask painting and erasing, independent tracking segments, clean-frame cards, FLUX crop-and-stitch editing, external-edit review and saved projects. It submits local ComfyUI graphs; it does not replace ComfyUI with another inference backend.
+Import opens **Trim clip** first: choose the export range, then continue to Mask. Point selections preview automatically; you can also paint a starting mask and track it. The main Mask timeline controls the tracking range independently of export. Completed masks become additive bars with trim handles and a delete control. Reopen Trim clip to change delivery. Clean-frame cards, FLUX crop-and-stitch editing, external-edit review and saved projects are included. It submits local ComfyUI graphs; it does not replace ComfyUI with another inference backend.
 
 Here, `app/` is the optional frontend source directory. It runs as a ComfyUI extension in a full-window workspace. It is not a separate Next.js server or a hosted `/app` endpoint. No Node.js build is needed for this interface. See [`app/README.md`](app/README.md).
 
@@ -98,3 +98,5 @@ Application code is AGPL-3.0-only. See [`LICENSE`](LICENSE) and [`THIRD_PARTY_NO
 Zura Paintout develops the existing [Zura Nodes](https://github.com/ZURAVFX/ComfyUI_zura_nodes) paintout foundation. See [what changed](build/CHANGES.md) for the entry's contribution and model attribution.
 
 The repository presentation follows [Comfy OpenJutsu](https://github.com/Comfy-Org/comfy-openjutsu) as a format reference. Its cloud setup and MIT licence do not apply to this project.
+
+A tracked mask's **Reset frame edit** removes the correction at the current frame and restores its tracked result. The mask bar stays in place. Use the bar's × to delete the whole mask layer.

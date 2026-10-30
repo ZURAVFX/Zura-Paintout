@@ -4,8 +4,11 @@ export const PAINTOUT_MODELS={
   model:'ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors',
   text:'gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors',
   videoVae:'ltx-2.5-video-vae-conv-bf16.safetensors',
+  hdrVideoVae:'ltx-2.5-video-vae-bf16.safetensors',
   audioVae:'ltx-2.5-audio-vae-bf16.safetensors',
   targetedLora:'LTX23_Obscura_Remova_v1.safetensors',
+  hdrLora:'ltx-2.5-22b-ic-lora-sdr-to-hdr-1.0.safetensors',
+  hdrEmbeddings:'ltx-2.5-22b-ic-lora-sdr-to-hdr-scene-emb.safetensors',
   fullLora:'ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors',
 };
 export const PAINTOUT_DEFAULT_PROMPTS={
@@ -33,6 +36,8 @@ export const paintoutStages={
 };
 const absolutePath=value=>typeof value==='string'&&(/^[a-z]:[\\/]/i.test(value)||/^\\\\[^\\]+\\[^\\]+/.test(value)||value.startsWith('/'));
 const whole=(value,min,max)=>Number.isInteger(Number(value))&&Number(value)>=min&&Number(value)<=max;
+export const paintoutColourPipeline=c=>c.colourPipeline||(c.processingSpace==='HDR (ACEScct)'?'hdr_hdr':'sdr_sdr');
+const hdrSource=c=>['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(c.sourceColour==='auto'?c.detectedSourceColour:c.sourceColour);
 const normalise=c=>({mode:'targeted',startFrame:0,frameCount:81,sequenceFps:25,sourceColour:'srgb_display',processingSpace:'SDR (sRGB)',width:1152,height:640,outputMode:'SDR video',savePrefix:'paintout/studio',exrPrecision:'float32',keepAudio:true,seed:42,...c});
 
 /** Returns an actionable message, or an empty string when ready to queue. */
@@ -48,6 +53,16 @@ export function paintoutValidation(config={}){
   if(![c.width,c.height].every(n=>whole(n,64,4096)&&Number(n)%64===0))return 'Render width and height must use 64-pixel increments, from 64 to 4096 pixels.';
   if(!PAINTOUT_COLOUR_SPACES.includes(c.sourceColour))return 'Choose the actual source colour space.';
   if(!['SDR (sRGB)','HDR (ACEScct)'].includes(c.processingSpace))return 'Choose SDR or HDR processing.';
+  const pipeline=paintoutColourPipeline(c);
+  if(!['sdr_sdr','sdr_hdr','hdr_hdr'].includes(pipeline))return 'Choose SDR to SDR, SDR to HDR or HDR to HDR.';
+  if(hdrSource(c)&&pipeline!=='hdr_hdr')return 'This is HDR footage. Choose HDR to HDR to preserve its highlights.';
+  if(pipeline==='hdr_hdr'&&c.sourceColour!=='auto'&&!hdrSource(c))return 'HDR to HDR needs HLG, PQ or a scene-linear/ACES source. Choose SDR to HDR for SDR footage.';
+  if(pipeline==='sdr_sdr'&&c.outputMode.includes('HLG'))return 'Choose SDR to HDR for a real HDR conversion; HLG tags alone do not expand SDR.';
+  if(pipeline!=='sdr_sdr'&&c.outputMode.includes('SDR'))return 'Choose HLG video, EXR sequence or EXR + HLG video for HDR delivery.';
+  if(pipeline==='sdr_hdr'){
+    const length=Math.max(9,Math.ceil((Number(c.frameCount)-1)/8)*8+1);
+    if(c.frameCount>121||c.width*c.height*length>40000000)return 'SDR to HDR currently supports 121 frames and 40 million padded pixel-frames. Trim a shorter range; the original raster is preserved.';
+  }
   if(!PAINTOUT_OUTPUT_MODES.includes(c.outputMode))return 'Choose a supported video or EXR export.';
   if(!['float32','float16'].includes(c.exrPrecision))return 'Choose float32 or float16 EXR precision.';
   if(!String(c.savePrefix??'').trim()||absolutePath(c.savePrefix)||String(c.savePrefix).split(/[\\/]/).includes('..'))return 'Use an output name inside the ComfyUI output folder.';
@@ -96,11 +111,12 @@ export function buildPaintoutGraph(config={}){
   const ref=(id,slot=0)=>[id,slot],node=(id,class_type,inputs)=>{g[id]={class_type,inputs,_meta:{title:paintoutStages[id]||id}};};
   const projectMask=targeted&&c.maskProject&&Number.isInteger(c.maskRevision);
   if(projectMask)node('mask_source','ZuraPaintoutMaskSource',{project:c.maskProject,revision:c.maskRevision});
+  if(c.colourPipeline)node('colour_check','ZuraPaintoutColourCheck',{source:c.source,colour_space:c.sourceColour,pipeline:c.colourPipeline,frame_count:Number(c.frameCount)});
   node('source',targeted?(projectMask?'ZuraPaintoutEditorCrop':'ZuraPaintoutCrop'):'ZuraPaintoutFullFrame',{
-    plate_path:c.source,...(targeted?{mask_path:projectMask?ref('mask_source'):c.mask}:{}),colour_space:c.sourceColour,
+    plate_path:c.colourPipeline?ref('colour_check'):c.source,...(targeted?{mask_path:projectMask?ref('mask_source'):c.mask}:{}),colour_space:c.sourceColour,
     start_frame:Number(c.startFrame),frame_count:Number(c.frameCount),sequence_fps:Number(c.sequenceFps),
     context_pixels:128,max_crop_side:768,repair_grow:targeted?Number(c.maskGrow??0):0,feather_pixels:targeted?Number(c.maskFeather??0):0,
-    processing_mode:c.processingSpace,framing_mode:'Plate resolution (stretch to next grid)',
+    processing_mode:paintoutColourPipeline(c)==='hdr_hdr'?'HDR (ACEScct)':'SDR (sRGB)',framing_mode:'Plate resolution (stretch to next grid)',
     render_width:Number(c.width),render_height:Number(c.height),
   });
   if(targeted)node('anchors','ZuraPaintoutAnchors',{plate:ref('source',2),anchors:JSON.stringify(c.anchors.filter(a=>a.enabled!==false).map(a=>({file:a.file,frame:Number(a.frame),strength:Number(a.strength??.75),enabled:true,...(a.colour_space?{colour_space:a.colour_space}:{})})))});
@@ -110,7 +126,7 @@ export function buildPaintoutGraph(config={}){
   node('text','CLIPLoader',{clip_name:PAINTOUT_MODELS.text,type:'ltxv',device:'default'});
   node('positive','CLIPTextEncode',{clip:ref('text'),text:String(c.prompt||'').trim()||PAINTOUT_DEFAULT_PROMPTS[c.mode]});
   node('negative','CLIPTextEncode',{clip:ref('text'),text:targeted?'blurry, low resolution, ugly, garbled mess, compression artifacts, glitch, stop motion, still image, pixelated, robotic voice, oversaturated':'people, person, pedestrian, human, cyclist, car, taxi, vehicle, bicycle, ghosting, blurry, distorted, jitter'});
-  node('video_vae','VAELoader',{vae_name:PAINTOUT_MODELS.videoVae});
+  node('video_vae','VAELoader',{vae_name:paintoutColourPipeline(c)==='hdr_hdr'?PAINTOUT_MODELS.hdrVideoVae:PAINTOUT_MODELS.videoVae});
   node('float_vae','LTXVVAEForceFloat32',{vae:ref('video_vae')});
   node('audio_vae','VAELoader',{vae_name:PAINTOUT_MODELS.audioVae});
   node('take','ZuraPaintoutTake',{plate:ref('source',2)});
@@ -135,20 +151,52 @@ export function buildPaintoutGraph(config={}){
   node('crop_guides','LTXVCropGuides',{positive:ref(conditioned),negative:ref(conditioned,1),latent:ref('separate')});
   node('decode','VAEDecodeTiled',{samples:ref('crop_guides',2),vae:ref('float_vae'),tile_size:512,overlap:64,temporal_size:128,temporal_overlap:32});
   node('save','ZuraPaintoutUncrop',{decoded_crop:ref('decode'),plate:ref('source',2),output_name:c.savePrefix,precision:c.exrPrecision,match_context:targeted,export_format:c.outputMode,motion_preview:true});
+  if(paintoutColourPipeline(c)==='sdr_hdr')appendHDRConversion(g,c);
   return g;
 }
 
 /** Availability is mode-specific: one adapter need not block the other mode. */
-export function paintoutAvailability(info={},mode='targeted'){
-  const targeted=mode!=='full',missing=[];
+export function paintoutAvailability(info={},mode='targeted',config={}){
+  const targeted=mode!=='full',missing=[];if(config.colourPipeline&&!info.ZuraPaintoutColourCheck)missing.push('ZuraPaintoutColourCheck (restart ComfyUI after updating)');
   const options=(node,key)=>{const f=info[node]?.input?.required?.[key]||info[node]?.input?.optional?.[key];return f?.[0]==='COMBO'?f[1]?.options||[]:Array.isArray(f?.[0])?f[0]:[];};
   const expected={UNETLoader:['unet_name',PAINTOUT_MODELS.model],CLIPLoader:['clip_name',PAINTOUT_MODELS.text],[targeted?'LoraLoaderModelOnly':'LTXICLoRALoaderModelOnly']:['lora_name',targeted?PAINTOUT_MODELS.targetedLora:PAINTOUT_MODELS.fullLora]};
   for(const [node,[key,file]] of Object.entries(expected))if(!options(node,key).includes(file))missing.push(file);
-  for(const file of [PAINTOUT_MODELS.videoVae,PAINTOUT_MODELS.audioVae])if(!options('VAELoader','vae_name').includes(file))missing.push(file);
+  for(const file of [paintoutColourPipeline(config)==='hdr_hdr'?PAINTOUT_MODELS.hdrVideoVae:PAINTOUT_MODELS.videoVae,PAINTOUT_MODELS.audioVae])if(!options('VAELoader','vae_name').includes(file))missing.push(file);
   const types=['UNETLoader','CLIPLoader','CLIPTextEncode','VAELoader','ZuraPaintoutTake','ZuraPaintoutUncrop','ZuraPaintoutGuideMemory','LTXVVAEForceFloat32','LTXVConditioning','EmptyLTXVLatentVideo','LTXAddVideoICLoRAGuideAdvanced','LTXVEmptyLatentAudio','LTXVConcatAVLatent','KSampler','LTXVSeparateAVLatent','LTXVCropGuides','VAEDecodeTiled',...(targeted?['ZuraPaintoutCrop','ZuraPaintoutAnchors','ZuraPaintoutApplyAnchors','GrowMask','BlockifyMask','InvertMask','LoraLoaderModelOnly']:['ZuraPaintoutFullFrame','LTXICLoRALoaderModelOnly'])];
   for(const node of types)if(!info[node])missing.push(node);
   if(info.KSampler&&!options('KSampler','scheduler').includes('linear_quadratic'))missing.push('LTX linear_quadratic scheduler');
   const guideInputs=info.LTXAddVideoICLoRAGuideAdvanced?.input;
   if(guideInputs&&!guideInputs.optional?.use_streaming&&!guideInputs.required?.use_streaming)missing.push('Current ComfyUI-LTXVideo guide nodes');
+  if(paintoutColourPipeline(config)==='sdr_hdr'){
+    if(!options('VAELoader','vae_name').includes(PAINTOUT_MODELS.hdrVideoVae))missing.push(PAINTOUT_MODELS.hdrVideoVae);
+    for(const [type,key,file] of [['LTXICLoRALoaderModelOnly','lora_name',PAINTOUT_MODELS.hdrLora],['ZuraPaintoutHDRConditioning','file_name',PAINTOUT_MODELS.hdrEmbeddings]])if(!options(type,key).includes(file))missing.push(file);
+    for(const type of ['ZuraPaintoutHDRPrepare','ZuraPaintoutHDRSave','ZuraPaintoutHDRConditioning','LTXAddVideoICLoRAGuide','ManualSigmas','SamplerCustomAdvanced','CFGGuider','KSamplerSelect','RandomNoise'])if(!info[type])missing.push(type);
+  }
   return {ready:!missing.length,missing:[...new Set(missing)]};
+}
+
+// Official LTX 2.5 SDR-to-HDR pass, after the masked SDR repair is composited.
+function appendHDRConversion(g,c){
+  const r=(id,slot=0)=>[id,slot],n=(id,class_type,inputs,title)=>{g[id]={class_type,inputs,_meta:{title}};};
+  g.repair_save=g.save;delete g.save;
+  Object.assign(g.repair_save.inputs,{export_format:'EXR sequence',motion_preview:false});
+  n('hdr_prepare','ZuraPaintoutHDRPrepare',{saved_sequence:r('repair_save'),plate:r('source',2)},'Preparing repaired SDR for HDR');
+  n('hdr_vae_loader','VAELoader',{vae_name:PAINTOUT_MODELS.hdrVideoVae},'Loading HDR video VAE');
+  n('hdr_vae','LTXVVAEForceFloat32',{vae:r('hdr_vae_loader')},'Preparing HDR float32 VAE');
+  n('hdr_lora','LTXICLoRALoaderModelOnly',{model:r('model'),lora_name:PAINTOUT_MODELS.hdrLora,strength_model:1},'Loading SDR to HDR adapter');
+  n('hdr_conditioning','ZuraPaintoutHDRConditioning',{file_name:PAINTOUT_MODELS.hdrEmbeddings},'Loading HDR scene embeddings');
+  n('hdr_condition','LTXVConditioning',{positive:r('hdr_conditioning'),negative:r('hdr_conditioning'),frame_rate:r('hdr_prepare',5)},'Preparing HDR conditioning');
+  n('hdr_latent','EmptyLTXVLatentVideo',{width:r('hdr_prepare',2),height:r('hdr_prepare',3),length:r('hdr_prepare',4),batch_size:1},'Preparing HDR samples');
+  n('hdr_guide','LTXAddVideoICLoRAGuide',{positive:r('hdr_condition'),negative:r('hdr_condition',1),vae:r('hdr_vae'),latent:r('hdr_latent'),image:r('hdr_prepare'),frame_idx:0,strength:1,latent_downscale_factor:r('hdr_lora',1),crop:'disabled',use_tiled_encode:false,tile_size:256,tile_overlap:64},'Encoding repaired SDR guide');
+  n('hdr_audio','LTXVEmptyLatentAudio',{audio_vae:r('audio_vae'),frames_number:r('hdr_prepare',4),frame_rate:r('hdr_prepare',5),batch_size:1},'Preparing HDR audio samples');
+  n('hdr_av','LTXVConcatAVLatent',{video_latent:r('hdr_guide',2),audio_latent:r('hdr_audio')},'Preparing HDR samples');
+  n('hdr_guider','CFGGuider',{model:r('hdr_lora'),positive:r('hdr_guide'),negative:r('hdr_guide',1),cfg:1},'Preparing HDR guidance');
+  n('hdr_noise','RandomNoise',{noise_seed:Number(c.seed)},'Preparing HDR noise');
+  n('hdr_sampler','KSamplerSelect',{sampler_name:'euler'},'Preparing HDR sampler');
+  n('hdr_sigmas','ManualSigmas',{sigmas:'1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0'},'Preparing official HDR schedule');
+  n('hdr_sample','SamplerCustomAdvanced',{noise:r('hdr_noise'),guider:r('hdr_guider'),sampler:r('hdr_sampler'),sigmas:r('hdr_sigmas'),latent_image:r('hdr_av')},'Converting the repaired shot to HDR');
+  n('hdr_separate','LTXVSeparateAVLatent',{av_latent:r('hdr_sample')},'Preparing HDR decode');
+  n('hdr_crop','LTXVCropGuides',{positive:r('hdr_guide'),negative:r('hdr_guide',1),latent:r('hdr_separate')},'Removing HDR guides');
+  n('hdr_decode','VAEDecodeTiled',{samples:r('hdr_crop',2),vae:r('hdr_vae'),tile_size:512,overlap:64,temporal_size:128,temporal_overlap:32},'Decoding HDR');
+  n('save','ZuraPaintoutHDRSave',{images:r('hdr_decode'),take:r('hdr_prepare',1),output_name:c.savePrefix,precision:c.exrPrecision,export_format:c.outputMode},'Saving HDR at original resolution and frame rate');
 }

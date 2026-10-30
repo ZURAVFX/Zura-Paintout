@@ -27,11 +27,11 @@ export class PaintoutTimeline{
     this.trimHandles={};
     for(const edge of ['in','out']){
       const handle=el('button','zp-editor-trim-handle zp-editor-trim-handle--'+edge);handle.type='button';handle.dataset.trim=edge;handle.setAttribute('aria-label',edge==='in'?'Trim start frame':'Trim end frame');handle.innerHTML='<svg width="10" height="20" viewBox="0 0 10 20" aria-hidden="true"><path d="M3 4v12M7 4v12" stroke="currentColor" stroke-width="1.5"/></svg>';
-      handle.onpointerdown=event=>{if(this.state.busy)return;event.preventDefault();event.stopPropagation();this.trimDrag=edge;handle.setPointerCapture(event.pointerId);};
+      handle.onpointerdown=event=>{if(this.state.busy||this.state.trimEditable===false)return;event.preventDefault();event.stopPropagation();this.trimDrag=edge;handle.setPointerCapture(event.pointerId);};
       handle.onpointermove=event=>{if(this.trimDrag!==edge)return;event.preventDefault();this.trimToPointer(edge,event,false);};
       handle.onpointerup=event=>{if(this.trimDrag!==edge)return;event.preventDefault();event.stopPropagation();this.trimToPointer(edge,event,true);this.trimDrag=null;if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);};
       handle.onpointercancel=event=>{if(this.trimDrag===edge){this.trimDrag=null;this.callbacks.onTrim(this.state.startFrame,this.state.startFrame+this.state.frameCount-1,true);}};
-      handle.onkeydown=event=>{if(this.state.busy||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const current=edge==='in'?this.state.startFrame:this.state.startFrame+this.state.frameCount-1;this.trimTo(edge,event.key==='Home'?0:event.key==='End'?this.totalFrames-1:current+(event.key==='ArrowLeft'?-1:1)*(event.shiftKey?10:1),true);};
+      handle.onkeydown=event=>{if(this.state.busy||this.state.trimEditable===false||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const current=edge==='in'?this.state.startFrame:this.state.startFrame+this.state.frameCount-1;this.trimTo(edge,event.key==='Home'?0:event.key==='End'?this.totalFrames-1:current+(event.key==='ArrowLeft'?-1:1)*(event.shiftKey?10:1),true);};
       this.trimHandles[edge]=handle;
     }
     this.ruler.append(this.trimSelection,this.trimHandles.in,this.trimHandles.out);
@@ -74,9 +74,10 @@ export class PaintoutTimeline{
   }
   trimToPointer(edge,event,commit){const rect=this.ruler.getBoundingClientRect(),fraction=Math.max(0,Math.min(1,(event.clientX-rect.left)/Math.max(1,rect.width)));this.trimTo(edge,Math.round(this.visibleStart()+fraction*(this.visibleEnd()-this.visibleStart()-1)),commit);}
   trimTo(edge,frame,commit){
-    let start=this.state.startFrame,end=start+this.state.frameCount-1;
-    if(edge==='in')start=Math.max(0,end-992,Math.min(end,Math.round(frame)));
-    else end=Math.min(this.totalFrames-1,start+992,Math.max(start,Math.round(frame)));
+    if(this.state.trimEditable===false)return;
+    let start=this.state.startFrame,end=start+this.state.frameCount-1;const minimum=this.state.trimMin??0,maximum=this.state.trimMax??this.totalFrames-1;
+    if(edge==='in')start=Math.max(minimum,end-992,Math.min(end,Math.round(frame)));
+    else end=Math.min(maximum,start+992,Math.max(start,Math.round(frame)));
     this.state.startFrame=start;this.state.frameCount=end-start+1;this.render();this.callbacks.onTrim(start,end,commit);
   }
   setZoom(frames){
@@ -86,13 +87,13 @@ export class PaintoutTimeline{
   }
   onKeydown(event){
     if(event.defaultPrevented||event.target.matches('input,textarea,select,[contenteditable=true]'))return;
-    if(event.key.toLowerCase()==='k'&&!event.ctrlKey&&!event.metaKey&&!this.state.busy){event.preventDefault();this.callbacks.onCreate(this.state.playhead);return;}
+    if(this.state.stage==='clean'&&event.key.toLowerCase()==='k'&&!event.ctrlKey&&!event.metaKey&&!this.state.busy){event.preventDefault();this.callbacks.onCreate(this.state.playhead);return;}
     if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();this.seek(this.state.playhead+(event.key==='ArrowLeft'?-1:1));}
   }
   updateReadout(){
     const frame=this.state.playhead;this.frameText.textContent=`Frame ${frame}`;
-    const start=this.state.startFrame,end=start+this.state.frameCount-1;this.trimText.textContent=`In ${start} · Out ${end} · ${this.state.frameCount} frames`;this.trimSelection.style.left=this.position(start)+'%';this.trimSelection.style.width=Math.max(0,this.position(end)-this.position(start))+'%';
-    for(const [edge,frame]of [['in',start],['out',end]]){const handle=this.trimHandles[edge];handle.style.left=this.position(frame)+'%';handle.disabled=this.state.busy;handle.title=`${edge==='in'?'In':'Out'}: frame ${frame}. Drag to trim.`;handle.setAttribute('aria-valuetext',String(frame));handle.hidden=frame<this.visibleStart()||frame>=this.visibleEnd();}
+    const start=this.state.startFrame,end=start+this.state.frameCount-1;this.trimText.textContent=`${this.state.stage==='mask'?'Track range · ':''}In ${start} · Out ${end} · ${this.state.frameCount} frames${this.state.stage==='mask'?` · Clip ${this.state.exportStart}–${this.state.exportEnd}`:''}`;this.trimSelection.style.left=this.position(start)+'%';this.trimSelection.style.width=Math.max(0,this.position(end)-this.position(start))+'%';
+    for(const [edge,frame]of [['in',start],['out',end]]){const handle=this.trimHandles[edge];handle.style.left=this.position(frame)+'%';handle.disabled=this.state.busy||this.state.trimEditable===false;handle.title=`${edge==='in'?'In':'Out'}: frame ${frame}. ${this.state.stage==='mask'?'Drag to set the tracking range.':'Drag to trim the exported clip.'}`;handle.setAttribute('aria-label',`${this.state.stage==='mask'?'Tracking':'Clip'} ${edge==='in'?'start':'end'} frame`);handle.setAttribute('aria-valuetext',String(frame));handle.hidden=this.state.trimEditable===false||frame<this.visibleStart()||frame>=this.visibleEnd();}
     this.timeText.textContent=`${(frame/this.state.fps).toFixed(3)} s · ${Number(this.state.fps.toFixed(3))} fps`;
     this.range.setAttribute('aria-valuetext',`Frame ${frame}`);
   }
@@ -107,11 +108,11 @@ export class PaintoutTimeline{
       if(to<from)continue;const mark=el('span','zp-editor-timeline__coverage-range');mark.style.left=`${this.position(from)}%`;mark.style.width=`${Math.max(.35,this.position(to)-this.position(from))}%`;mark.classList.toggle('is-review',range.status==='review'||range.status==='needs_review');mark.title=range.label|| (range.status==='review'||range.status==='needs_review'?'Mask needs review (advisory)':'Tracked mask');this.coverage.append(mark);
     }
     this.maskAnchors.replaceChildren();const seen=new Set();
-    for(const range of this.state.maskRanges||[]){const frame=range.metadata?.frame;if(!Number.isInteger(frame)||frame<start||frame>=end||seen.has(frame))continue;seen.add(frame);const marker=el('button','zp-editor-timeline__mask-anchor');marker.type='button';marker.disabled=this.state.busy;marker.style.left=`${this.position(frame)}%`;marker.title=`Mask correction at source frame ${frame}`;marker.setAttribute('aria-label',marker.title);marker.onclick=event=>{event.stopPropagation();this.callbacks.onMaskSelect(frame);};this.maskAnchors.append(marker);}
+    for(const range of this.state.stage==='mask'?[]:this.state.maskRanges||[]){const frame=range.metadata?.frame;if(!Number.isInteger(frame)||frame<start||frame>=end||seen.has(frame))continue;seen.add(frame);const marker=el('button','zp-editor-timeline__mask-anchor');marker.type='button';marker.disabled=this.state.busy;marker.style.left=`${this.position(frame)}%`;marker.title=`Mask correction at source frame ${frame}`;marker.setAttribute('aria-label',marker.title);marker.onclick=event=>{event.stopPropagation();this.callbacks.onMaskSelect(frame);};this.maskAnchors.append(marker);}
   }
   renderMaskBars(){
     this.maskLanes.replaceChildren();this.addMask.hidden=this.state.stage!=='mask'||!(this.state.maskSegments||[]).some(s=>s.tracked);this.addMask.disabled=this.state.busy||this.state.newMaskPending;
-    this.cleanLane.hidden=this.state.stage==='mask';this.addFrame.hidden=this.state.stage==='mask';
+    this.cleanLane.hidden=this.state.stage!=='clean';this.addFrame.hidden=this.state.stage!=='clean';
     if(this.state.stage!=='mask'){this.maskLanes.hidden=true;return;}
     this.maskLanes.hidden=false;
     const segments=(this.state.maskSegments||[]).filter(s=>s.tracked);
@@ -161,7 +162,8 @@ export class PaintoutTimeline{
     this.zoomIn.disabled=this.windowSize<=Math.min(32,this.totalFrames)||this.state.busy;this.zoomOut.disabled=this.windowSize>=this.totalFrames||this.state.busy;
     this.range.min=String(this.visibleStart());this.range.max=String(Math.max(this.visibleStart(),this.visibleEnd()-1));if(!this.dragging)this.range.value=String(Math.min(this.state.playhead,this.totalFrames-1));
     this.renderCards();this.renderMaskBars();this.renderTicks();this.updateReadout();this.updatePlayheadLine();
-    if(this.state.stage==='mask')this.help.textContent='Click a mask bar to edit · Drag its ends to trim';
+    this.title.textContent=this.state.stage==='trim'?'Trim clip':this.state.stage==='mask'?'Mask timeline':'Source timeline';
+    this.help.textContent=this.state.stage==='mask'?'Drag In/Out to set tracking range · Mask bars have their own duration':this.state.stage==='trim'?'Drag In/Out, then choose Use trimmed clip':'Add clean frame at the playhead · Open Trim clip to change the exported range';
     this.cleanLane.setAttribute('aria-description',`${this.state.anchors.length} clean frames. Click an empty position above the ruler to add one. Press K at the playhead to add one.`);
   }
   dispose(){this.resizeObserver?.disconnect();this.root.remove();}

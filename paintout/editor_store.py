@@ -264,7 +264,7 @@ def choose_mask_candidate(body):
 def project_response(document):
     manifest = _mask_manifest(document['id'], document['mask_revision']) if document['mask_revision'] is not None else None
     from .mask_segments import summaries
-    return {**document, 'mask_segments': summaries(manifest), 'mask_coverage': sorted(int(i) for i in manifest['files']) if manifest else [],
+    return {**document, 'mask_segments': summaries(manifest, document['id']), 'mask_coverage': sorted(int(i) for i in manifest['files']) if manifest else [],
             'mask_review_ranges': manifest.get('review_ranges', []) if manifest else [],
             'mask_seed': _mask_seed_response(document['id'], manifest)}
 

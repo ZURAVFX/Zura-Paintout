@@ -12,10 +12,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
+from scipy.ndimage import maximum_filter, distance_transform_edt
 
 from .paintout import (
     COLOUR_SPACES, CATEGORY, composite_crop, describe, frames, is_hdr,
     resize, save_exr, selected_space, working, protection_mask, plate_processing_size,
+    to_linear, unworking, sdr_view,
 )
 
 
@@ -130,6 +132,25 @@ def composite_patch(patch, generated, match_context=True):
         restored = resize(torch.from_numpy(result)[None], height, width)[0].numpy()
         result,_ = composite_crop(original, restored, patch['delivery_mask'], patch['delivery_grow'],
                                   patch['delivery_feather'], False, protection=patch.get('delivery_protection'))
+    if patch.get('hdr_original') is not None:
+        # FLUX sees a fixed SDR view, never ACEScct or extended-range samples.
+        # Reconstruct only its edited support in AP1; untouched master pixels
+        # are copied directly, including negative values and bright highlights.
+        linear = unworking(torch.from_numpy(result)[None], patch['hdr_source_space'], 'SDR (sRGB)')[0].numpy()
+        if not np.isfinite(linear).all():
+            raise ValueError('The HDR clean frame contains invalid pixels; try another edit.')
+        original = patch['hdr_original']
+        mask = patch.get('delivery_mask', patch['mask'])
+        grow = patch.get('delivery_grow', patch['grow'])
+        feather = patch.get('delivery_feather', patch['feather'])
+        support = maximum_filter(mask > .001, size=2*grow+1) if grow else mask > .001
+        if feather:
+            support = support | (distance_transform_edt(~support) < feather)
+        protection = patch.get('delivery_protection', patch.get('protection'))
+        if protection is not None:
+            support[np.asarray(protection) > .001] = False
+        result = original.copy()
+        result[support] = linear[support]
     return result
 
 
@@ -206,10 +227,13 @@ class ZuraPaintoutFrameCrop:
         if isinstance(frame, bool) or not isinstance(frame, int) or not 0 <= frame < description['count']:
             raise ValueError('Choose a source frame inside the footage.')
         space = selected_space(description, colour_space)
-        if is_hdr(space):
-            raise ValueError('AI frame cleaning is currently qualified for SDR. Use manually edited EXR or high-bit-depth TIFF clean frames for HDR footage.')
-        original = next(frames(description, frame, 1))
-        original = working(torch.from_numpy(original.copy())[None].float(), space, 'SDR (sRGB)')[0].cpu().numpy()
+        encoded = next(frames(description, frame, 1))
+        if not np.isfinite(encoded).all():
+            raise ValueError('The source frame contains non-finite pixels.')
+        hdr_original = to_linear(torch.from_numpy(encoded.copy()).float(), space).numpy() if is_hdr(space) else None
+        if hdr_original is not None and not np.isfinite(hdr_original).all():
+            raise ValueError('The HDR source cannot be converted to finite scene-linear pixels. Check its colour space.')
+        original = working(torch.from_numpy(encoded.copy())[None].float(), space, 'SDR (sRGB)')[0].cpu().numpy()
         matte = decode_mask(mask, description['width'], description['height'])
         protection = None
         if project:
@@ -222,8 +246,10 @@ class ZuraPaintoutFrameCrop:
             protection = protection_mask(descriptor, frame)
             matte[protection > .001] = 0
         image, crop_mask, patch = prepare_plate_patch(original, matte, grow, feather, context, max_side, protection)
-        patch.update(source=str(path), frame=frame, colour_space='srgb_display',
+        patch.update(source=str(path), frame=frame, colour_space='acescg' if hdr_original is not None else 'srgb_display',
                      description=description, identity=source_identity(description))
+        if hdr_original is not None:
+            patch.update(hdr_original=hdr_original, hdr_source_space=space, edit_view='SDR shoulder view; FLUX is not a native HDR model')
         # The captioner sees the selection; FLUX receives the unmarked reference.
         selection = image.clone()
         coverage = crop_mask[..., None] * .45
@@ -255,11 +281,14 @@ class ZuraPaintoutFrameComposite:
         stem = f"clean_{patch['frame']:06d}_{secrets.token_hex(6)}"
         png, master = directory / (stem + '.png'), directory / (stem + '.exr')
         # The float EXR keeps untouched working-space samples exact. PNG is a portable, quantised preview.
-        save_exr(str(master), result, 'srgb_display', False)
-        save_png16(png, result)
+        colour_space = patch.get('colour_space', 'srgb_display')
+        save_exr(str(master), result, colour_space, False)
+        preview = sdr_view(torch.from_numpy(result), True).numpy() if colour_space == 'acescg' else result
+        save_png16(png, preview)
         row = {'file': str(master), 'png_file': str(png), 'url': grant(png),
                'master_url': grant(master), 'frame': patch['frame'],
-               'colour_space': 'srgb_display', 'width': result.shape[1], 'height': result.shape[0]}
+               'colour_space': colour_space, 'preview_colour_space': 'srgb_display',
+               'edit_view': patch.get('edit_view', 'SDR'), 'width': result.shape[1], 'height': result.shape[0]}
         descriptor = {'filename': png.name, 'subfolder': 'paintout/clean_frames', 'type': 'output'}
         return {'ui': {'zura_frame': [row], 'images': [descriptor]}, 'result': (str(master),)}
 

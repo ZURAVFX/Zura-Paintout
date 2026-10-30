@@ -34,13 +34,15 @@ def grant(path):
     return '/zura/paintout/media?'+urlencode({'token':token})
 
 def describe_media(path):
-    from .paintout import describe
+    from .paintout import describe, selected_space
     p=checked_path(path);d=describe(str(p));kind='image' if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS else d['kind']
     if kind=='image':
         from .frame_editor import validate_edit_orientation
         validate_edit_orientation(p)
     result=dict(path=str(p),name=p.name,width=d['width'],height=d['height'],frames=d['count'],fps=d.get('fps') or 25,kind=kind,
                 thumbnail_url='/zura/paintout/frame-preview?'+urlencode({'file':str(p),'space':'auto','frame':0,'size':1280}))
+    try:result['resolved_colour']=selected_space(d,'auto')
+    except (ValueError,OSError) as error:result['colour_error']=str(error)
     if kind=='video':result['media_url']=grant(p)
     return result
 

@@ -14,3 +14,11 @@ register_routes()
 from . import editor_routes
 editor_routes.register_routes()
 
+
+from .hdr import NODE_CLASS_MAPPINGS as HDR_NODES, NODE_DISPLAY_NAME_MAPPINGS as HDR_NAMES
+NODE_CLASS_MAPPINGS.update(HDR_NODES)
+NODE_DISPLAY_NAME_MAPPINGS.update(HDR_NAMES)
+
+from .hdr_conditioning import ZuraPaintoutHDRConditioning
+NODE_CLASS_MAPPINGS["ZuraPaintoutHDRConditioning"] = ZuraPaintoutHDRConditioning
+NODE_DISPLAY_NAME_MAPPINGS["ZuraPaintoutHDRConditioning"] = "Paintout HDR Scene Conditioning"

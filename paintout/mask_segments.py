@@ -22,8 +22,41 @@ def segments_for(manifest):
                  end=frames[-1], available_start=frames[0], available_end=frames[-1], tracked=True)]
 
 
-def summaries(manifest):
-    return [{k: v for k, v in segment.items() if k != 'files'} for segment in segments_for(manifest)]
+def _tracked_files(project, manifest, segment):
+    """Recover old projects from immutable tracked passes, never a corrected union."""
+    if 'tracked_files' in segment:
+        return dict(segment['tracked_files'])
+    baseline = {}
+    if project and segment.get('tracked'):
+        from . import editor_store as store
+        for entry in reversed(store._read(project).get('mask_history', [])):
+            if entry['revision'] > manifest['revision']:
+                continue
+            metadata = entry.get('metadata', {})
+            same = metadata.get('segment_id') == segment['id']
+            legacy = segment['id'] == 'legacy' and not metadata.get('segment_id')
+            tracked = metadata.get('tracked') or (legacy and entry.get('end_frame', 0) > entry.get('start_frame', 0) and not metadata.get('manual_correction'))
+            if not (same or legacy) or not tracked:
+                continue
+            old = store._mask_manifest(project, entry['revision'])
+            previous = next((item for item in segments_for(old) if item['id'] == segment['id']), None)
+            if previous:
+                for key, path in previous['files'].items():
+                    if entry['start_frame'] <= int(key) <= entry['end_frame']:
+                        baseline.setdefault(key, path)
+    # Old drafts with no original tracking pass cannot invent a recoverable edit.
+    return baseline or dict(segment['files'])
+
+
+def summaries(manifest, project=None):
+    result = []
+    for segment in segments_for(manifest):
+        summary = {k: v for k, v in segment.items() if k not in ('files', 'tracked_files')}
+        baseline = _tracked_files(project, manifest, segment)
+        summary['correction_frames'] = sorted(int(key) for key, path in segment['files'].items()
+                                              if segment.get('tracked') and key in baseline and path != baseline[key])
+        result.append(summary)
+    return result
 
 
 def read_segment(project, segment_id, frame, revision=None, grow=0):
@@ -100,6 +133,7 @@ def commit_segment(project, identity, frame_masks, operation, expected, metadata
                 raise ValueError('The original mask no longer exists.')
             segment = dict(id=segment_id, name=f'Mask {len(segments)+1}', files={}, tracked=False)
             segments.append(segment)
+        segment['tracked_files'] = _tracked_files(project, manifest, segment) if manifest else {}
         # Raw incoming sources are retained separately from the union forever.
         owned = store.project_dir(project) / 'segment_sources' / secrets.token_hex(12)
         owned.mkdir(parents=True)
@@ -117,6 +151,8 @@ def commit_segment(project, identity, frame_masks, operation, expected, metadata
                 path = owned / f'{frame:08d}.png'
                 Image.fromarray(np.round(value * 255).astype(np.uint8)).save(path)
                 segment['files'][str(frame)] = str(path)
+                if metadata.get('tracked'):
+                    segment['tracked_files'][str(frame)] = str(path)
             available = sorted(map(int, segment['files']))
             segment.update(available_start=available[0], available_end=available[-1])
             if (metadata.get('tracked') and not segment['tracked']) or 'start' not in segment:
@@ -154,6 +190,16 @@ def edit_segment(body):
             raise ValueError('This mask segment no longer exists.')
         if body.get('delete') is True:
             segments.remove(segment)
+        elif 'reset_frame' in body:
+            frame = body['reset_frame']
+            if isinstance(frame, bool) or not isinstance(frame, int) or not segment.get('tracked') or not segment['start'] <= frame <= segment['end']:
+                raise ValueError('Choose an edited frame inside this tracked mask.')
+            baseline = _tracked_files(project, manifest, segment)
+            key = str(frame)
+            if key not in baseline or segment['files'].get(key) == baseline[key]:
+                raise ValueError('This frame has no saved correction to reset.')
+            segment['tracked_files'] = baseline
+            segment['files'][key] = baseline[key]
         else:
             start, end = body.get('start'), body.get('end')
             if any(isinstance(v, bool) or not isinstance(v, int) for v in (start, end)) or not segment['available_start'] <= start <= end <= segment['available_end']:

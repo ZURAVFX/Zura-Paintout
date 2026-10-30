@@ -59,8 +59,19 @@ def main():
         check(('anchors' in graph) == targeted, 'guide branch')
         if targeted:
             check(bool(json.loads(graph['anchors']['inputs']['anchors'])), 'guide records')
+    for name, conversion in [('targeted-hdr.api.json', False), ('targeted-sdr-to-hdr.api.json', True)]:
+        graph = json.loads((ROOT / 'workflows' / name).read_text(encoding='utf-8'))
+        check(graph['colour_check']['class_type'] == 'ZuraPaintoutColourCheck', 'HDR source preflight')
+        check(graph['save']['class_type'] == ('ZuraPaintoutHDRSave' if conversion else 'ZuraPaintoutUncrop'), 'HDR delivery node')
+        if conversion:
+            check(graph['hdr_lora']['inputs']['model'] == ['model', 0], 'HDR adapter isolation')
+            check(graph['hdr_sampler']['inputs']['sampler_name'] == 'euler', 'official HDR sampler')
+        for node in graph.values():
+            for value in node['inputs'].values():
+                if isinstance(value, list):
+                    check(len(value) == 2 and value[0] in graph and isinstance(value[1], int), 'HDR API connection')
     print(f'PASS: {len(manifest["files"])} file hashes, Python syntax, local documentation links, licences, '
-          'frontend registration, two native templates and two API graph structures. No GPU inference performed.')
+          'frontend registration, two native templates and four API graph structures. No GPU inference performed.')
 
 
 if __name__ == '__main__':

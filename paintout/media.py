@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from .paintout import encode_ct, native_colour, resize, sdr_view
 
-def correct_video_clock(path,fps):
+def correct_video_clock(path,fps,hdr=False):
     rate=Fraction(str(fps)).limit_denominator(100000)
     temp=path.with_name(path.stem+'_clock.mp4')
     ticks=rate.denominator;timescale=rate.numerator
@@ -16,7 +16,11 @@ def correct_video_clock(path,fps):
     # source clock after concatenation, without re-encoding image samples.
     # Packet-count expressions need no prescale option (absent in older FFmpeg).
     expression=f'setts=pts=N*{ticks}/{timescale}/TB:dts=N*{ticks}/{timescale}/TB:duration={ticks}/{timescale}/TB'
-    subprocess.run([find_media_tool('ffmpeg'),'-v','error','-i',str(path),'-map','0:v:0','-c:v','copy','-bsf:v',expression,'-video_track_timescale',str(timescale),'-y',str(temp)],check=True,capture_output=True)
+    # Native chunk concatenation can drop primaries/transfer metadata. Set the
+    # final H.264 VUI and MP4 colour fields together, without re-encoding pixels.
+    if hdr:expression+=',h264_metadata=colour_primaries=9:transfer_characteristics=18:matrix_coefficients=9'
+    colour=['-color_primaries','bt2020','-color_trc','arib-std-b67','-colorspace','bt2020nc'] if hdr else []
+    subprocess.run([find_media_tool('ffmpeg'),'-v','error','-i',str(path),'-map','0:v:0','-c:v','copy','-bsf:v',expression,*colour,'-video_track_timescale',str(timescale),'-y',str(temp)],check=True,capture_output=True)
     temp.replace(path)
 
 def copy_source_audio(path,plate):
@@ -104,7 +108,7 @@ class Delivery:
             video=InputImpl.VideoFromList(chunks,codec=Types.VideoCodec.H264)
             # Uses the same VIDEO implementation as native Create Video / Save Video.
             video.save_to(str(path),format=Types.VideoContainer.MP4,codec=Types.VideoCodec.AUTO)
-            correct_video_clock(path,self.plate.get('fps_rational',self.plate['fps']))
+            correct_video_clock(path,self.plate.get('fps_rational',self.plate['fps']),hdr=name=='paintout_HLG_10bit.mp4')
             copy_source_audio(path,self.plate)
             rel=path.relative_to(Path(folder_paths.get_output_directory()))
             results.append({'filename':rel.name,'subfolder':str(rel.parent).replace('\\','/'),'type':'output'})

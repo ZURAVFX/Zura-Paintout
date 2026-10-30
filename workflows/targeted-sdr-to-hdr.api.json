@@ -1,0 +1,782 @@
+{
+  "colour_check": {
+    "class_type": "ZuraPaintoutColourCheck",
+    "inputs": {
+      "source": "C:/path/to/plate.mp4",
+      "colour_space": "srgb_display",
+      "pipeline": "sdr_hdr",
+      "frame_count": 9
+    },
+    "_meta": {
+      "title": "colour_check"
+    }
+  },
+  "source": {
+    "class_type": "ZuraPaintoutCrop",
+    "inputs": {
+      "plate_path": [
+        "colour_check",
+        0
+      ],
+      "mask_path": "C:/path/to/removal-mask.mp4",
+      "colour_space": "srgb_display",
+      "start_frame": 0,
+      "frame_count": 9,
+      "sequence_fps": 25,
+      "context_pixels": 128,
+      "max_crop_side": 768,
+      "repair_grow": 0,
+      "feather_pixels": 0,
+      "processing_mode": "SDR (sRGB)",
+      "framing_mode": "Plate resolution (stretch to next grid)",
+      "render_width": 768,
+      "render_height": 448
+    },
+    "_meta": {
+      "title": "Reading footage and preparing frames"
+    }
+  },
+  "anchors": {
+    "class_type": "ZuraPaintoutAnchors",
+    "inputs": {
+      "plate": [
+        "source",
+        2
+      ],
+      "anchors": "[{\"file\":\"C:/path/to/clean_000000.exr\",\"frame\":0,\"strength\":0.75,\"enabled\":true,\"colour_space\":\"srgb_display\"}]"
+    },
+    "_meta": {
+      "title": "Loading painted anchors"
+    }
+  },
+  "model": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Loading LTX 2.5"
+    }
+  },
+  "lora": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "model",
+        0
+      ],
+      "lora_name": "LTX23_Obscura_Remova_v1.safetensors",
+      "strength_model": 1.25
+    },
+    "_meta": {
+      "title": "Loading the paintout adapter"
+    }
+  },
+  "memory": {
+    "class_type": "ZuraPaintoutGuideMemory",
+    "inputs": {
+      "model": [
+        "lora",
+        0
+      ],
+      "query_chunk": 1024
+    },
+    "_meta": {
+      "title": "Preparing guide attention"
+    }
+  },
+  "text": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "type": "ltxv",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "Loading the text encoder"
+    }
+  },
+  "positive": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "text",
+        0
+      ],
+      "text": "Remove the objects covered by the removal mask, using the manually painted clean frames as the restored background. Preserve all other subjects, scene details, lighting and original camera movement."
+    },
+    "_meta": {
+      "title": "Encoding the prompt"
+    }
+  },
+  "negative": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "text",
+        0
+      ],
+      "text": "blurry, low resolution, ugly, garbled mess, compression artifacts, glitch, stop motion, still image, pixelated, robotic voice, oversaturated"
+    },
+    "_meta": {
+      "title": "Encoding the prompt"
+    }
+  },
+  "video_vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ltx-2.5-video-vae-conv-bf16.safetensors"
+    },
+    "_meta": {
+      "title": "Loading the video VAE"
+    }
+  },
+  "float_vae": {
+    "class_type": "LTXVVAEForceFloat32",
+    "inputs": {
+      "vae": [
+        "video_vae",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing float32 precision"
+    }
+  },
+  "audio_vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ltx-2.5-audio-vae-bf16.safetensors"
+    },
+    "_meta": {
+      "title": "Loading the audio VAE"
+    }
+  },
+  "take": {
+    "class_type": "ZuraPaintoutTake",
+    "inputs": {
+      "plate": [
+        "source",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "Reading the selected frames"
+    }
+  },
+  "conditioning": {
+    "class_type": "LTXVConditioning",
+    "inputs": {
+      "positive": [
+        "positive",
+        0
+      ],
+      "negative": [
+        "negative",
+        0
+      ],
+      "frame_rate": [
+        "take",
+        5
+      ]
+    },
+    "_meta": {
+      "title": "Preparing conditioning"
+    }
+  },
+  "latent": {
+    "class_type": "EmptyLTXVLatentVideo",
+    "inputs": {
+      "width": [
+        "take",
+        2
+      ],
+      "height": [
+        "take",
+        3
+      ],
+      "length": [
+        "take",
+        4
+      ],
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Preparing video samples"
+    }
+  },
+  "grow_mask": {
+    "class_type": "GrowMask",
+    "inputs": {
+      "mask": [
+        "take",
+        1
+      ],
+      "expand": 32,
+      "tapered_corners": true
+    },
+    "_meta": {
+      "title": "Expanding the removal mask"
+    }
+  },
+  "block_mask": {
+    "class_type": "BlockifyMask",
+    "inputs": {
+      "masks": [
+        "grow_mask",
+        0
+      ],
+      "block_size": 32,
+      "device": "gpu"
+    },
+    "_meta": {
+      "title": "Preparing removal attention"
+    }
+  },
+  "invert_mask": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": [
+        "block_mask",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing removal attention"
+    }
+  },
+  "guide": {
+    "class_type": "LTXAddVideoICLoRAGuideAdvanced",
+    "inputs": {
+      "positive": [
+        "conditioning",
+        0
+      ],
+      "negative": [
+        "conditioning",
+        1
+      ],
+      "vae": [
+        "float_vae",
+        0
+      ],
+      "latent": [
+        "latent",
+        0
+      ],
+      "image": [
+        "take",
+        0
+      ],
+      "attention_mask": [
+        "invert_mask",
+        0
+      ],
+      "frame_idx": 0,
+      "strength": 1,
+      "latent_downscale_factor": 1,
+      "crop": "disabled",
+      "use_tiled_encode": false,
+      "tile_size": 256,
+      "tile_overlap": 64,
+      "attention_strength": 1,
+      "use_streaming": false,
+      "tile_frames": 97
+    },
+    "_meta": {
+      "title": "Encoding source guidance"
+    }
+  },
+  "apply_anchors": {
+    "class_type": "ZuraPaintoutApplyAnchors",
+    "inputs": {
+      "positive": [
+        "guide",
+        0
+      ],
+      "negative": [
+        "guide",
+        1
+      ],
+      "vae": [
+        "float_vae",
+        0
+      ],
+      "latent": [
+        "guide",
+        2
+      ],
+      "anchors": [
+        "anchors",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Encoding painted anchors"
+    }
+  },
+  "audio": {
+    "class_type": "LTXVEmptyLatentAudio",
+    "inputs": {
+      "audio_vae": [
+        "audio_vae",
+        0
+      ],
+      "frames_number": [
+        "take",
+        4
+      ],
+      "frame_rate": [
+        "take",
+        5
+      ],
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Preparing audio samples"
+    }
+  },
+  "combine": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "apply_anchors",
+        2
+      ],
+      "audio_latent": [
+        "audio",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing samples"
+    }
+  },
+  "sample": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "memory",
+        0
+      ],
+      "positive": [
+        "apply_anchors",
+        0
+      ],
+      "negative": [
+        "apply_anchors",
+        1
+      ],
+      "latent_image": [
+        "combine",
+        0
+      ],
+      "seed": 42,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "linear_quadratic",
+      "denoise": 1
+    },
+    "_meta": {
+      "title": "Generating the clean plate"
+    }
+  },
+  "separate": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "sample",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing the result"
+    }
+  },
+  "crop_guides": {
+    "class_type": "LTXVCropGuides",
+    "inputs": {
+      "positive": [
+        "apply_anchors",
+        0
+      ],
+      "negative": [
+        "apply_anchors",
+        1
+      ],
+      "latent": [
+        "separate",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Removing guide frames"
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": [
+        "crop_guides",
+        2
+      ],
+      "vae": [
+        "float_vae",
+        0
+      ],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 128,
+      "temporal_overlap": 32
+    },
+    "_meta": {
+      "title": "Decoding the result"
+    }
+  },
+  "repair_save": {
+    "class_type": "ZuraPaintoutUncrop",
+    "inputs": {
+      "decoded_crop": [
+        "decode",
+        0
+      ],
+      "plate": [
+        "source",
+        2
+      ],
+      "output_name": "paintout/contest",
+      "precision": "float32",
+      "match_context": true,
+      "export_format": "EXR sequence",
+      "motion_preview": false
+    },
+    "_meta": {
+      "title": "Compositing and saving the shot"
+    }
+  },
+  "hdr_prepare": {
+    "class_type": "ZuraPaintoutHDRPrepare",
+    "inputs": {
+      "saved_sequence": [
+        "repair_save",
+        0
+      ],
+      "plate": [
+        "source",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "Preparing repaired SDR for HDR"
+    }
+  },
+  "hdr_vae_loader": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ltx-2.5-video-vae-bf16.safetensors"
+    },
+    "_meta": {
+      "title": "Loading HDR video VAE"
+    }
+  },
+  "hdr_vae": {
+    "class_type": "LTXVVAEForceFloat32",
+    "inputs": {
+      "vae": [
+        "hdr_vae_loader",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing HDR float32 VAE"
+    }
+  },
+  "hdr_lora": {
+    "class_type": "LTXICLoRALoaderModelOnly",
+    "inputs": {
+      "model": [
+        "model",
+        0
+      ],
+      "lora_name": "ltx-2.5-22b-ic-lora-sdr-to-hdr-1.0.safetensors",
+      "strength_model": 1
+    },
+    "_meta": {
+      "title": "Loading SDR to HDR adapter"
+    }
+  },
+  "hdr_conditioning": {
+    "class_type": "ZuraPaintoutHDRConditioning",
+    "inputs": {
+      "file_name": "ltx-2.5-22b-ic-lora-sdr-to-hdr-scene-emb.safetensors"
+    },
+    "_meta": {
+      "title": "Loading HDR scene embeddings"
+    }
+  },
+  "hdr_condition": {
+    "class_type": "LTXVConditioning",
+    "inputs": {
+      "positive": [
+        "hdr_conditioning",
+        0
+      ],
+      "negative": [
+        "hdr_conditioning",
+        0
+      ],
+      "frame_rate": [
+        "hdr_prepare",
+        5
+      ]
+    },
+    "_meta": {
+      "title": "Preparing HDR conditioning"
+    }
+  },
+  "hdr_latent": {
+    "class_type": "EmptyLTXVLatentVideo",
+    "inputs": {
+      "width": [
+        "hdr_prepare",
+        2
+      ],
+      "height": [
+        "hdr_prepare",
+        3
+      ],
+      "length": [
+        "hdr_prepare",
+        4
+      ],
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Preparing HDR samples"
+    }
+  },
+  "hdr_guide": {
+    "class_type": "LTXAddVideoICLoRAGuide",
+    "inputs": {
+      "positive": [
+        "hdr_condition",
+        0
+      ],
+      "negative": [
+        "hdr_condition",
+        1
+      ],
+      "vae": [
+        "hdr_vae",
+        0
+      ],
+      "latent": [
+        "hdr_latent",
+        0
+      ],
+      "image": [
+        "hdr_prepare",
+        0
+      ],
+      "frame_idx": 0,
+      "strength": 1,
+      "latent_downscale_factor": [
+        "hdr_lora",
+        1
+      ],
+      "crop": "disabled",
+      "use_tiled_encode": false,
+      "tile_size": 256,
+      "tile_overlap": 64
+    },
+    "_meta": {
+      "title": "Encoding repaired SDR guide"
+    }
+  },
+  "hdr_audio": {
+    "class_type": "LTXVEmptyLatentAudio",
+    "inputs": {
+      "audio_vae": [
+        "audio_vae",
+        0
+      ],
+      "frames_number": [
+        "hdr_prepare",
+        4
+      ],
+      "frame_rate": [
+        "hdr_prepare",
+        5
+      ],
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Preparing HDR audio samples"
+    }
+  },
+  "hdr_av": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "hdr_guide",
+        2
+      ],
+      "audio_latent": [
+        "hdr_audio",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing HDR samples"
+    }
+  },
+  "hdr_guider": {
+    "class_type": "CFGGuider",
+    "inputs": {
+      "model": [
+        "hdr_lora",
+        0
+      ],
+      "positive": [
+        "hdr_guide",
+        0
+      ],
+      "negative": [
+        "hdr_guide",
+        1
+      ],
+      "cfg": 1
+    },
+    "_meta": {
+      "title": "Preparing HDR guidance"
+    }
+  },
+  "hdr_noise": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 42
+    },
+    "_meta": {
+      "title": "Preparing HDR noise"
+    }
+  },
+  "hdr_sampler": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "_meta": {
+      "title": "Preparing HDR sampler"
+    }
+  },
+  "hdr_sigmas": {
+    "class_type": "ManualSigmas",
+    "inputs": {
+      "sigmas": "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "_meta": {
+      "title": "Preparing official HDR schedule"
+    }
+  },
+  "hdr_sample": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "hdr_noise",
+        0
+      ],
+      "guider": [
+        "hdr_guider",
+        0
+      ],
+      "sampler": [
+        "hdr_sampler",
+        0
+      ],
+      "sigmas": [
+        "hdr_sigmas",
+        0
+      ],
+      "latent_image": [
+        "hdr_av",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Converting the repaired shot to HDR"
+    }
+  },
+  "hdr_separate": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "hdr_sample",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Preparing HDR decode"
+    }
+  },
+  "hdr_crop": {
+    "class_type": "LTXVCropGuides",
+    "inputs": {
+      "positive": [
+        "hdr_guide",
+        0
+      ],
+      "negative": [
+        "hdr_guide",
+        1
+      ],
+      "latent": [
+        "hdr_separate",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Removing HDR guides"
+    }
+  },
+  "hdr_decode": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": [
+        "hdr_crop",
+        2
+      ],
+      "vae": [
+        "hdr_vae",
+        0
+      ],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 128,
+      "temporal_overlap": 32
+    },
+    "_meta": {
+      "title": "Decoding HDR"
+    }
+  },
+  "save": {
+    "class_type": "ZuraPaintoutHDRSave",
+    "inputs": {
+      "images": [
+        "hdr_decode",
+        0
+      ],
+      "take": [
+        "hdr_prepare",
+        1
+      ],
+      "output_name": "paintout/contest",
+      "precision": "float32",
+      "export_format": "EXR + HLG video"
+    },
+    "_meta": {
+      "title": "Saving HDR at original resolution and frame rate"
+    }
+  }
+}

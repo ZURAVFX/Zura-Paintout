@@ -4,10 +4,11 @@ The main entry is the [ComfyUI workflow](../README.md#run-the-comfy-workflow). T
 
 After installing the node pack, use **Open Zura Paintout**, the visible **Zura Paintout** button, or `?paintout=1` on your ComfyUI address. The integrated Zura Nodes version is called **Paintout Studio**. Neither route requires a launcher node.
 
-1. Add footage and choose targeted repair.
-2. Use the viewer toolbar to select the subject with points, preview the mask and track it. Alternatively import a matching black-and-white mask video. Scrub to paint or erase corrections. Each completed mask becomes a timeline bar. Click it to edit, drag its ends to trim, or use Add mask for another selection. Overlapping bars combine automatically.
-3. Add clean-frame cards on the timeline. Draw the removal area, include shadows where needed and adjust its hard expansion. Clean with FLUX 3 Klein or import an external edit. Accept only a clean, undistorted guide; X discards an unaccepted candidate when a text field is not focused.
-4. Render through ComfyUI's queue and inspect the output.
+1. Choose Targeted repair and add footage. **Trim clip** opens first. Drag In/Out to choose the exported clip, then click **Use trimmed clip** to continue to Mask. Reopen Trim clip to change delivery later.
+2. Use the viewer toolbar to click the subject with positive/negative points. The red mask previews automatically. Or paint the starting mask directly, then click **Track mask through shot**. Import mask video accepts a matching black-and-white mask instead. In Mask, timeline In/Out chooses the tracking range only; it cannot alter the export range.
+3. Scrub to paint or erase corrections. Each completed mask becomes a timeline bar: select it to edit, drag its ends to trim, or click its x to delete. **Add mask** starts another selection; overlapping masks combine. **Clear selection** removes an untracked selection.
+4. Add clean-frame cards on the timeline. Draw the removal area, include shadows where needed and adjust its hard expansion. Clean with FLUX 3 Klein or import an external edit. Accept only a clean, undistorted guide; X discards an unaccepted candidate when a text field is not focused.
+5. Choose the Render colour pipeline, then render through ComfyUI's queue and inspect the output. See [HDR pipelines](../build/hdr.md) for SDR to HDR and HDR to HDR requirements and limits.
 
 The app is a ComfyUI web extension, not a separately hosted service. It uses the same Python nodes, native graph recipes, models and queue as the workflow. Local filesystem dialogs open on the machine running ComfyUI. A remote browser does not make processing local to that browser.
 

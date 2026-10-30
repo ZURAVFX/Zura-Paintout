@@ -42,7 +42,7 @@ export class PaintoutWorkspace{
 
     this.page.innerHTML=`
 
-      <div class="zf-heading"><h2>Paintout</h2><div class="zps-view-tabs" role="group" aria-label="Paintout preview">${[['source','Source'],['mask','Mask'],['anchor','Painted frame'],['result','Result']].map(([id,label])=>`<button type="button" data-view="${id}">${label}</button>`).join('')}</div><button type="button" id="zps-compare" hidden>Compare</button><a id="zps-download" hidden download>Download</a><details id="zps-history"><summary>History</summary><div id="zps-takes"></div></details><button type="button" id="zps-new">Start over</button></div>
+      <div class="zf-heading"><h2>Paintout</h2><div class="zps-colour-status" id="zps-colour-status" aria-label="Input and output colour" hidden><span><strong id="zps-input-range"></strong><small id="zps-input-space"></small></span><span><strong id="zps-output-range"></strong><small id="zps-output-space"></small></span><details id="zps-check-colour" hidden><summary>Check colour</summary><div><label>Actual source colour<select id="zps-source-colour-confirm">${options(colours,this.state.sourceColour)}</select></label><p>Tags are missing or unsupported. Choose the colour space your footage was saved in.</p></div></details></div><div class="zps-view-tabs" role="group" aria-label="Paintout preview">${[['source','Source'],['mask','Mask'],['anchor','Painted frame'],['result','Result']].map(([id,label])=>`<button type="button" data-view="${id}">${label}</button>`).join('')}</div><button type="button" id="zps-compare" hidden>Compare</button><a id="zps-download" hidden download>Download</a><details id="zps-history"><summary>History</summary><div id="zps-takes"></div></details><button type="button" id="zps-new">Start over</button></div>
 
       <div class="zf-viewer">
 
@@ -90,7 +90,7 @@ export class PaintoutWorkspace{
 
           <details class="zc-tool-popup" id="zps-anchor-settings" hidden><summary class="zc-tool">Painted frame ${icons.chevron}</summary><div class="zc-tool-panel"><strong id="zps-selected-name"></strong><div class="zps-anchor-shortcuts"><button type="button" data-anchor-frame="first">First selected</button><button type="button" data-anchor-frame="current">Use playhead</button><button type="button" data-anchor-frame="last">Last selected</button></div><label>Guide strength<input id="zps-anchor-strength" type="number" min="0.01" max="1" step="0.01" value="0.75"/></label><label>Image colour space<select id="zps-anchor-colour">${options(colours.filter(([id])=>id!=='auto'),'srgb_display')}</select></label><label class="zf-check"><input type="checkbox" id="zps-anchor-enabled" checked/>Use this painted frame</label><button type="button" id="zps-replace-anchor">Replace image</button></div></details>
 
-        </div><div class="zc-prompt-submit"><button type="submit" class="gs-primary" id="zps-generate" disabled>Generate clean plate</button></div></div>
+        </div><div class="zc-prompt-submit"><p class="zps-output-confirmation" id="zps-output-confirmation" aria-live="polite"></p><button type="submit" class="gs-primary" id="zps-generate" disabled>Generate clean plate</button></div></div>
 
         <p id="zps-note" aria-live="polite"></p>
 
@@ -118,6 +118,8 @@ export class PaintoutWorkspace{
 
     for(const button of this.page.querySelectorAll('[data-view]'))button.onclick=()=>this.preview(button.dataset.view);
 
+    this.$('source-colour-confirm').onchange=()=>{if(this.busy())return;this.$('colour').value=this.$('source-colour-confirm').value;this.$('check-colour').open=false;this.$('colour').onchange();};
+
     this.$('prompt').oninput=()=>{this.prompts[this.state.mode]=this.$('prompt').value;this.save();};
 
     this.$('pipeline').value=paintoutColourPipeline(this.state);
@@ -142,7 +144,7 @@ export class PaintoutWorkspace{
 
       const input=this.$(id);if(input.type==='number'&&(!input.value||!input.checkValidity())){this.message('Enter a valid '+input.closest('label').firstChild.textContent.toLowerCase()+'.');return;}
 
-      this.state[key]=input.type==='number'?Number(input.value):input.value;this.changed();if(['colour','processing'].includes(id)){if(this.editor?.active)this.editor.frameChanged(true);else this.preview(this.view);}
+      this.state[key]=input.type==='number'?Number(input.value):input.value;if(id==='colour'){this.state.sourceColourConfirmed=input.value!=='auto';if(['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(input.value)){this.state.colourPipeline='hdr_hdr';this.state.processingSpace='HDR (ACEScct)';this.state.outputMode='EXR + HLG video';}else if(input.value!=='auto'&&paintoutColourPipeline(this.state)==='hdr_hdr'){this.state.colourPipeline='sdr_sdr';this.state.processingSpace='SDR (sRGB)';this.state.outputMode='SDR video';}this.$('processing').value=this.state.processingSpace;this.$('output').value=this.state.outputMode;}this.changed();if(['colour','processing'].includes(id)){if(this.editor?.active)this.editor.frameChanged(true);else this.preview(this.view);}
 
     };
 
@@ -246,7 +248,7 @@ export class PaintoutWorkspace{
 
     if(this.busy())return;try{await this.editor?.flushManual();await this.editor?.persist();}catch(e){this.message(e.message);return;}let added=false;this.picking=true;this.render();
 
-    try{const [file]=await this.pick(kind);if(!file)return;const info=await this.info(file);this.state.source=file;this.state.activeMaskSegment=null;this.state.maskSegmentDraft=null;this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.maskCoverage=null;this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;this.sourceInfo=info;if(info.resolved_colour){this.state.sourceColour=info.resolved_colour;this.$('colour').value=info.resolved_colour;this.state.colourPipeline=['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(info.resolved_colour)?'hdr_hdr':'sdr_sdr';this.state.processingSpace=this.state.colourPipeline==='hdr_hdr'?'HDR (ACEScct)':'SDR (sRGB)';this.state.outputMode=this.state.colourPipeline==='hdr_hdr'?'EXR + HLG video':'SDR video';this.$('processing').value=this.state.processingSpace;this.$('output').value=this.state.outputMode;}this.state.mask='';this.maskInfo=null;this.state.anchors=[];this.selected=-1;this.state.startFrame=0;this.state.frameCount=Math.min(81,info.frames);this.playhead=0;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.$('start').value=0;this.$('count').value=this.state.frameCount;this.renderAnchors();this.changed();this.preview('source');this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;added=true;}
+    try{const [file]=await this.pick(kind);if(!file)return;const info=await this.info(file);this.state.source=file;this.state.activeMaskSegment=null;this.state.maskSegmentDraft=null;this.state.editorProject=null;this.state.maskProject=null;this.state.maskRevision=null;this.state.maskCoverage=null;this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;this.sourceInfo=info;this.state.sourceColourConfirmed=false;if(!info.resolved_colour){this.state.sourceColour="srgb_display";this.state.colourPipeline="sdr_sdr";this.state.processingSpace="SDR (sRGB)";this.state.outputMode="SDR video";this.$("colour").value=this.state.sourceColour;this.$("processing").value=this.state.processingSpace;this.$("output").value=this.state.outputMode;}if(info.resolved_colour){this.state.sourceColour=info.resolved_colour;this.$('colour').value=info.resolved_colour;this.state.colourPipeline=['acescg','acescct','hlg_rec2020','pq_rec2020','linear_rec709'].includes(info.resolved_colour)?'hdr_hdr':'sdr_sdr';this.state.processingSpace=this.state.colourPipeline==='hdr_hdr'?'HDR (ACEScct)':'SDR (sRGB)';this.state.outputMode=this.state.colourPipeline==='hdr_hdr'?'EXR + HLG video':'SDR video';this.$('processing').value=this.state.processingSpace;this.$('output').value=this.state.outputMode;}this.state.mask='';this.maskInfo=null;this.state.anchors=[];this.selected=-1;this.state.startFrame=0;this.state.frameCount=Math.min(81,info.frames);this.playhead=0;this.result=null;this.$('export-link').hidden=true;this.$('export-link').removeAttribute('href');this.$('start').value=0;this.$('count').value=this.state.frameCount;this.renderAnchors();this.changed();this.preview('source');this.state.editorStage='trim';this.state.clipTrimConfirmed=false;this.state.maskTrackStart=null;this.state.maskTrackEnd=null;added=true;}
 
     catch(e){this.message(this.requestError(e));}finally{this.picking=false;this.save();this.render();}
 
@@ -360,6 +362,27 @@ export class PaintoutWorkspace{
 
   async open(){attachWorkspaceSamplePreview(this);if(!this.modelInfo)this.loadModels();if(this.state.source){try{this.sourceInfo=await this.info(this.state.source);if(this.state.mask)this.maskInfo=await this.info(this.state.mask);}catch(e){this.message(this.requestError(e));}}const stage=this.state.editorStage;this.preview(this.result?'result':'source');if(this.job)this.startPolling();if(this.state.source)await this.editor?.setStage(stage==='trim'?'trim':this.state.mode==='full'||this.result?'render':stage||'mask');if(this.editor?.toolJob)this.editor.startPolling();}
 
+  renderColourStatus(config){
+    const has=!!this.state.source,info=this.sourceInfo||{};
+    this.$('colour-status').hidden=!has;
+    const hdr=space=>['acescg','acescct','hlg_rec2020','pq_rec2020','pq_display_p3','linear_rec709'].includes(space);
+    const label=space=>colours.find(([id])=>id===space)?.[1]||space||'Unknown colour space';
+    const detected=info.resolved_colour,selected=config.sourceColour==='auto'?detected:config.sourceColour;
+    const manual=!!this.state.sourceColourConfirmed&&!!selected;
+    const known=manual?selected:detected;
+    const unconfirmed=!known;
+    this.$('input-range').textContent=`Input: ${known?(hdr(known)?'HDR':'SDR'):'Unconfirmed'}`;
+    this.$('input-space').textContent=manual?`${label(selected)} · manually set${detected&&detected!==selected?' · tags say '+label(detected):''}`:detected?`${label(detected)} · detected${selected&&detected!==selected?' · using '+label(selected):''}`:`${selected?'Using '+(hdr(selected)?'HDR':'SDR')+' · '+label(selected):'Colour tags not recognised'} · check source colour`;
+    this.$('check-colour').hidden=!has||!unconfirmed;
+    this.$('source-colour-confirm').disabled=this.busy();this.$('source-colour-confirm').value=config.sourceColour;
+    this.$('colour-status').classList.toggle('is-unconfirmed',unconfirmed);
+    const format=config.outputMode||'SDR video',pipeline=paintoutColourPipeline(config);
+    const output=format.includes('HLG')?'HDR':format.includes('SDR')?'SDR':pipeline==='sdr_sdr'?'SDR':'HDR';
+    this.$('output-range').textContent=`Output: ${output}`;
+    this.$('output-space').textContent=format;
+    this.$('output-confirmation').textContent=`Will save ${output} · ${format}`;
+  }
+
   render(){
 
     const busy=this.busy(),targeted=this.state.mode==='targeted',c=this.config(),availability=this.modelInfo?paintoutAvailability(this.modelInfo,this.state.mode,c):null;let error=[...this.page.querySelectorAll('[data-input-error]')].find(input=>!input.disabled)?.dataset.inputError||paintoutValidation(c);
@@ -368,7 +391,7 @@ export class PaintoutWorkspace{
 
     if(!error&&targeted&&this.maskInfo&&this.maskInfo.frames>1&&this.maskInfo.frames<c.startFrame+c.frameCount)error='The mask does not cover the selected source range.';
 
-    this.validationError=error;this.availability=availability;
+    this.validationError=error;this.availability=availability;this.renderColourStatus(c);
 
     this.page.querySelector('.zf-composer').hidden=!this.state.source;this.$('title').textContent='Review and render';this.$('workflow-label').textContent=targeted?'Targeted repair':'Full-scene clean plate';this.$('pipeline').value=paintoutColourPipeline(this.state);this.$('pipeline').disabled=busy;this.$('shot-summary').textContent=this.sourceInfo?`${name(this.state.source)} · ${this.sourceInfo.width} × ${this.sourceInfo.height} · ${this.fps()} fps · frames ${c.startFrame}–${c.startFrame+c.frameCount-1}`:'';
 

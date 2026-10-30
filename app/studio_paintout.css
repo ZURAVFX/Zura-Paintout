@@ -91,3 +91,19 @@
 
 :is(#zura-paintout-app,#zura-paintout-app) .zp-page>.zf-heading{width:100%;max-width:1200px;box-sizing:border-box;margin-inline:auto}
 :is(#zura-paintout-app,#zura-paintout-app) .zp-page:not(.zp-editor-open) .zps-view-tabs{display:none}
+
+/* Keep source identification and the next delivery visible throughout the shot. */
+:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;margin-right:auto;min-width:0}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status>span{display:flex;flex-direction:column;gap:2px;max-width:38ch;line-height:1.4}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status strong{font-size:12px;font-weight:600;color:var(--zc-text)}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status small{font-size:11px;color:var(--gs-muted);white-space:normal}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status.is-unconfirmed #zps-input-range{color:var(--gs-warning,#edb977)}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour{border:1px solid var(--gs-line);border-radius:5px;background:var(--zc-hover);padding:8px 10px;min-height:36px;color:var(--zc-text)}
+:is(#zura-paintout-app,#zura-paintout-app) .zps-output-confirmation{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--zc-text);line-height:1.5}
+@media(max-width:700px){:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status{flex-basis:100%;gap:8px 18px}:is(#zura-paintout-app,#zura-paintout-app) .zps-colour-status>span{max-width:100%}}
+
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour{position:relative;font-size:12px}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>summary{cursor:pointer;list-style:none}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>div{position:absolute;top:calc(100% + 8px);left:0;z-index:30;width:min(300px,calc(100vw - 48px));padding:14px;background:var(--gs-panel);border:1px solid var(--gs-line);border-radius:8px;box-sizing:border-box;color:var(--zc-text)}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour select{display:block;width:100%;margin-top:8px;min-height:40px;padding:8px;background:var(--gs-input);color:var(--zc-text);border:1px solid var(--gs-line);border-radius:5px;font:inherit}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour p{color:var(--gs-muted);margin:10px 0 0;font-size:12px;line-height:1.5}

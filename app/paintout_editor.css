@@ -257,3 +257,15 @@
 @media(max-width:700px){.zp-editor-stages{flex-wrap:wrap}.zp-editor-guide{margin-left:4px}.zp-editor-trim-tools{align-items:stretch;flex-direction:column}.zp-editor-timeline__readout{flex-wrap:wrap;gap:4px 10px}}
 
 .zp-editor-viewer-toolbar .zp-editor-toolbar-group:not(:has(button:not([hidden]))){display:none}
+
+/* Per-frame paint layers stay with the cleanup controls. */
+.zp-editor-paint-layers{display:grid;gap:6px;padding-top:14px;border-top:1px solid var(--gs-line,#33333d);font:12px/1.5 system-ui;color:var(--zc-text,#f2f2f0)}
+.zp-editor-paint-layers[hidden]{display:none}.zp-editor-paint-layers>span,.zp-editor-paint-layers li span{color:var(--gs-muted,#a3a3aa)}
+.zp-editor-paint-layers ol{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:0;max-height:260px;overflow:auto}
+.zp-editor-paint-layers li{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--gs-line,#33333d)}
+.zp-editor-paint-layers li img{width:64px;height:36px;object-fit:contain;background:var(--gs-panel,#19191e)}
+.zp-editor-paint-layers li>div{display:grid;flex:1;min-width:0}.zp-editor-paint-layers li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zp-editor-paint-layers button{flex:none;min-height:36px;padding:6px 10px;border:1px solid var(--gs-line,#33333d);border-radius:5px;background:var(--gs-panel,#19191e);color:inherit;font:inherit;cursor:pointer}
+.zp-editor-paint-layers button:hover{background:var(--gs-line,#33333d)}.zp-editor-paint-layers button:disabled{opacity:.45;cursor:default}
+.zp-editor-paint-layers button:focus-visible{outline:2px solid var(--gs-accent,#caff00);outline-offset:2px}
+@media(max-width:500px){.zp-editor-paint-layers li{gap:8px}.zp-editor-paint-layers li img{width:48px;height:30px}}

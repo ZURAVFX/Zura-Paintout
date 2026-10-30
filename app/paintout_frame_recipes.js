@@ -12,23 +12,41 @@ const choices = (info, node, input) => {
 };
 const matchFile = (files, name) => files.find(file => String(file).replaceAll('\\', '/').split('/').pop() === name);
 
-export function frameEditAvailability(info = {}) {
+export function frameRemovalTarget(instruction = '') {
+  const text=String(instruction).trim();
+  const match=text.match(/^(?:please\s+)?(?:remove|erase|delete)\s+(?:only\s+)?(?:the\s+)?(.+?)(?=\s+(?:and|but|without|while)\s+|[,.;!\n]|$)/i);
+  if(!match)return '';
+  const target=match[1].replace(/\s+only$/i,'').trim();
+  if(!target||target.length>120||/^(?:everything|anything|all|selected|masked|painted|object|subject|area|region)\b/i.test(target))return '';
+  const remainder=text.slice(match[0].length).trim();
+  if(/^and\s+/i.test(remainder)&&!/^and\s+(?:reconstruct|restore|fill|keep|preserve|leave|match|replace|inpaint)\b/i.test(remainder))return '';
+  return target;
+}
+
+export function frameEditAvailability(info = {}, config = {}) {
   const files = {
     model: matchFile(choices(info, 'UNETLoader', 'unet_name'), FRAME_EDIT_MODELS.model),
     text: matchFile(choices(info, 'CLIPLoader', 'clip_name'), FRAME_EDIT_MODELS.text),
     vae: matchFile(choices(info, 'VAELoader', 'vae_name'), FRAME_EDIT_MODELS.vae),
   };
   const missing = requiredNodes.filter(name => !info[name]);
+  if(config.named_target&&frameRemovalTarget(config.prompt)){
+    const sam=choices(info,'CheckpointLoaderSimple','ckpt_name').find(file=>/sam3\.1_multiplex_fp16\.safetensors$/i.test(file));
+    if(!sam)missing.push('SAM3.1 checkpoint for selecting the named object');
+    for(const name of ['CheckpointLoaderSimple','SAM3_Detect','ZuraPaintoutTargetConditioning','ZuraPaintoutFrameTarget'])if(!info[name])missing.push(name);
+    files.sam=sam;
+  }
   if (Array.isArray(info.ZuraPaintoutFrameCrop?.output) && info.ZuraPaintoutFrameCrop.output.length < 7) missing.push('Restart ComfyUI to load the updated frame-removal backend');
-  for (const [key, file] of Object.entries(files)) if (!file) missing.push(FRAME_EDIT_MODELS[key]);
+  for (const [key, name] of Object.entries(FRAME_EDIT_MODELS)) if (!files[key]) missing.push(name);
   if (info.CLIPLoader && !choices(info, 'CLIPLoader', 'type').includes('flux3')) missing.push('Current ComfyUI FLUX 3 text encoder support');
   return {ready: !missing.length, missing: [...new Set(missing)], files};
 }
 
-const selectionInstruction = 'Reconstruct the flat gray filled area as a natural continuation of the empty background. Continue the existing surface texture, lines, perspective and lighting across it. The filled area must contain only empty ground and background. Do not add a vehicle or object. Keep the rest of the image unchanged.';
+const selectionInstruction = 'Reconstruct the filled area left by the removal, matching the surrounding scene, perspective, texture and lighting. Preserve other objects and scene details. Follow the artist instruction; do not remove unrelated subjects.';
+const backgroundInstruction = 'Reconstruct the flat gray filled area as a natural continuation of the empty background. Continue the existing surface texture, lines, perspective and lighting across it. The filled area must contain only empty ground and background. Do not add a vehicle or object. Keep the rest of the image unchanged.';
 
 export function buildFrameEditGraph(config, info) {
-  const available = frameEditAvailability(info);
+  const available = frameEditAvailability(info, config);
   if (!available.ready) throw new Error('Frame cleaning needs: ' + available.missing.join(', '));
   if (!config.source || !Number.isInteger(Number(config.frame)) || Number(config.frame) < 0) throw new Error('Choose a source frame to clean.');
   if (!config.mask) throw new Error('Draw over the object to remove first.');
@@ -41,12 +59,23 @@ export function buildFrameEditGraph(config, info) {
     source: config.source, frame: Number(config.frame), colour_space: config.colour_space || 'srgb_display',
     mask: config.mask, grow: Number(config.grow ?? 0), feather: Number(config.feather ?? 0),
     context: Number(config.context ?? 128), max_side: Number(config.max_side ?? 1024),
+    ...(config.base_file?{base_file:config.base_file,base_colour_space:config.base_colour_space||'srgb_display'}:{}),
     ...(config.project ? {project: config.project, mask_revision: Number(config.mask_revision)} : {}),
   }, 'Preparing the selected frame');
+  const target=config.named_target?frameRemovalTarget(config.prompt):'';
+  if(target){
+    node('frame_subject_model','CheckpointLoaderSimple',{ckpt_name:files.sam},'Loading object selection');
+    node('frame_subject_text','CLIPTextEncode',{clip:ref('frame_subject_model',1),text:target},'Finding '+target);
+    node('frame_subject_conditioning','ZuraPaintoutTargetConditioning',{conditioning:ref('frame_subject_text')},'Checking matching objects');
+    node('frame_subject_detect','SAM3_Detect',{model:ref('frame_subject_model'),image:ref('frame_crop'),conditioning:ref('frame_subject_conditioning'),threshold:.5,refine_iterations:2,individual_masks:true},'Selecting '+target);
+    node('frame_target','ZuraPaintoutFrameTarget',{patch:ref('frame_crop',2),image:ref('frame_crop'),masks:ref('frame_subject_detect'),target},'Protecting everything except '+target);
+  }
   node('frame_model', 'UNETLoader', {unet_name: files.model, weight_dtype: 'default'}, 'Loading FLUX 3 Image Klein');
   node('frame_text', 'CLIPLoader', {clip_name: files.text, type: 'flux3', device: 'default'}, 'Loading the frame text encoder');
   node('frame_vae', 'VAELoader', {vae_name: files.vae}, 'Loading the frame VAE');
-  node('frame_positive', 'CLIPTextEncode', {clip: ref('frame_text'), text: selectionInstruction+'\n\nArtist instruction: '+String(config.prompt || 'Remove the selected object and reconstruct the background.').trim()}, 'Encoding the clean-frame instruction');
+  // The artist's subject goes to SAM. FLUX synthesises replacement background;
+  // only the detected subject support is composited, protecting other objects.
+  node('frame_positive', 'CLIPTextEncode', {clip: ref('frame_text'), text: target?backgroundInstruction:'Artist instruction: '+String(config.prompt || 'Remove the selected object and reconstruct the background.').trim()+'\n\n'+selectionInstruction}, 'Encoding the clean-frame instruction');
   node('frame_negative', 'CLIPTextEncode', {clip: ref('frame_text'), text: ''}, 'Preparing frame conditioning');
   node('frame_reference', 'ReferenceMultiLatent', {
     positive: ref('frame_positive'), negative: ref('frame_negative'), vae: ref('frame_vae'),
@@ -59,7 +88,7 @@ export function buildFrameEditGraph(config, info) {
   }, 'Cleaning the frame with FLUX 3');
   node('frame_decode', 'VAEDecode', {samples: ref('frame_sample'), vae: ref('frame_vae')}, 'Decoding the clean frame');
   node('frame_save', 'ZuraPaintoutFrameComposite', {
-    patch: ref('frame_crop', 2), image: ref('frame_decode'), match_context: config.match_context !== false,
+    patch: ref(target?'frame_target':'frame_crop', target?1:2), image: ref('frame_decode'), match_context: config.match_context !== false,
   }, 'Blending only the painted region');
   return graph;
 }

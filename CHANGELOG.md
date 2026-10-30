@@ -4,6 +4,9 @@ Adds Registry metadata and automatic Python dependency declarations, native Temp
 
 # 30 October 2026 clean-frame removal fix
 
+- Clean-frame paint layers stack automatically after each FLUX generation. New edits use the current painted frame; delete individual layers without restoring older paint outside their masks, or choose Remove all paint layers to start from the original. No Use clean frame approval is required. Layer recomposition preserves source dimensions and HDR master pixels outside the retained masks.
+- Remove repeated-edge crop padding. Crops take real adjacent image context to reach the model grid, including when touching the source edge; tiny or downscaled crops use a recorded reversible grid resize.
+- Correct corrupted UTF-8 punctuation in progress and frame labels; package verification rejects common corrupted-text sequences.
 - Show a plain-language next action above the viewer throughout trimming, masking, tracking, clean-frame review and rendering. Instructions stay visible on narrow screens. Accepted clean frames expose Next: render beside the editing controls.
 - FLUX receives a single reference with the painted target erased, so the unwanted object is no longer reinforced by original and red-overlay references. The artist's instruction controls reconstruction. A controlled test removes the actual failed silver car; unseen background still requires artist review.
 - Model-facing selection now follows mask expansion in original plate pixels, including protected areas. Final compositing keeps the original effective boundary without applying growth twice.

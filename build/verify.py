@@ -24,6 +24,10 @@ def main():
         check(hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == expected, 'hash mismatch: ' + name)
     for file in ROOT.rglob('*.py'):
         ast.parse(file.read_text(encoding='utf-8-sig'), filename=str(file))
+    for file in (ROOT / 'app').rglob('*.js'):
+        text = file.read_text(encoding='utf-8-sig')
+        check(not any(marker in text for marker in ('\u00c2\u00b7', '\u00e2\u20ac', '\ufffd')),
+              'corrupted interface text: ' + str(file.relative_to(ROOT)))
     check('WEB_DIRECTORY = "./app"' in (ROOT / '__init__.py').read_text(encoding='utf-8'), 'frontend registration')
     check((ROOT / 'app/assets/fonts/Manrope-OFL.txt').is_file(), 'font licence')
     check((ROOT / 'app/assets/icons/Lucide-LICENSE.txt').is_file(), 'icon licence')

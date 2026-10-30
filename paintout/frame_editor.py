@@ -10,14 +10,13 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from PIL import Image
 from scipy.ndimage import maximum_filter, distance_transform_edt, binary_fill_holes
 
 from .paintout import (
     COLOUR_SPACES, CATEGORY, composite_crop, describe, frames, is_hdr,
     resize, save_exr, selected_space, working, protection_mask, plate_processing_size,
-    to_linear, unworking, sdr_view,
+    to_linear, unworking, sdr_view, read_image,
 )
 
 
@@ -58,7 +57,7 @@ def decode_mask(encoded, width, height):
 
 
 def plan_crop(mask, grow=0, feather=0, context=128, max_side=1024):
-    """Return source bounds and a reversible, aspect-preserving model transform."""
+    """Use real plate context, then a reversible model-grid resize if needed."""
     if mask.ndim != 2 or not np.isfinite(mask).all():
         raise ValueError('The edit mask must be a finite two-dimensional image.')
     for name, value, low, high in (
@@ -75,15 +74,25 @@ def plan_crop(mask, grow=0, feather=0, context=128, max_side=1024):
     left, top = max(0, int(xx.min()) - margin), max(0, int(yy.min()) - margin)
     right = min(width, int(xx.max()) + 1 + margin)
     bottom = min(height, int(yy.max()) + 1 + margin)
+    def real_context(start, end, length):
+        extent = min(length, max(64, math.ceil((end-start)/16)*16))
+        # At a plate edge, take the extra context from the opposite side.
+        start = max(0, min(start-(extent-(end-start))//2, length-extent))
+        return start, start+extent
+    left, right = real_context(left, right, width)
+    top, bottom = real_context(top, bottom, height)
     crop_width, crop_height = right - left, bottom - top
-    scale = min(1.0, max_side / max(crop_width, crop_height))
-    resized_width = max(1, round(crop_width * scale))
-    resized_height = max(1, round(crop_height * scale))
+    limit = max(64, max_side//16*16)
+    scale = min(1.0, limit / max(crop_width, crop_height))
+    # A downscaled or tiny/non-grid source is resized across the whole crop.
+    # Save both shapes so compositing can undo this small grid quantisation.
+    resized_width = max(64, round(crop_width*scale/16)*16)
+    resized_height = max(64, round(crop_height*scale/16)*16)
     return {
         'rect': [left, top, crop_width, crop_height],
         'resized': [resized_height, resized_width],
-        'padded': [max(64, math.ceil(resized_height / 16) * 16),
-                   max(64, math.ceil(resized_width / 16) * 16)],
+        # Retain the existing metadata key; there are no synthetic pad pixels.
+        'padded': [resized_height, resized_width],
         'grow': grow, 'feather': feather,
     }
 
@@ -137,19 +146,15 @@ def prepare_patch(original, mask, grow=0, feather=0, context=128, max_side=1024,
         raise ValueError('The model selection mask must match the finite edit mask.')
     x, y, width, height = transform['rect']
     rh, rw = transform['resized']
-    ph, pw = transform['padded']
     image = torch.from_numpy(original[y:y+height, x:x+width].copy())[None].float()
     matte = torch.from_numpy(model_mask[y:y+height, x:x+width].copy())[None, :, :, None].float()
     image = resize(image, rh, rw)
-    matte = resize(matte, rh, rw, 'nearest-exact')
-    image = F.pad(image.movedim(-1, 1), (0, pw-rw, 0, ph-rh), mode='replicate').movedim(1, -1)
-    matte = F.pad(matte.movedim(-1, 1), (0, pw-rw, 0, ph-rh)).squeeze(1)
+    matte = resize(matte, rh, rw, 'nearest-exact').squeeze(-1)
     patch = {**transform, 'original': original.copy(), 'mask': mask.copy()}
     if protection is not None:
         patch['protection'] = protection
         protected = torch.from_numpy(protection[y:y+height, x:x+width].copy())[None, :, :, None].float()
-        protected = resize(protected, rh, rw, 'nearest-exact')
-        protected = F.pad(protected.movedim(-1, 1), (0, pw-rw, 0, ph-rh)).squeeze(1)
+        protected = resize(protected, rh, rw, 'nearest-exact').squeeze(-1)
         patch['model_protection'] = protected[0].numpy()
     return image, matte, patch
 
@@ -255,6 +260,8 @@ class ZuraPaintoutFrameCrop:
             'context': ('INT', {'default': 128, 'min': 0, 'max': 2048}),
             'max_side': ('INT', {'default': 1024, 'min': 64, 'max': 2048}),
         }, 'optional': {
+            'base_file': ('STRING', {'default': ''}),
+            'base_colour_space': (COLOUR_SPACES,),
             'project': ('STRING', {'default': ''}),
             'mask_revision': ('INT', {'default': -1, 'min': -1, 'max': 1000000}),
         }}
@@ -271,7 +278,7 @@ class ZuraPaintoutFrameCrop:
         except (OSError, ValueError):
             return float('nan')
 
-    def prepare(self, source, frame, colour_space, mask, grow, feather, context, max_side, project='', mask_revision=-1):
+    def prepare(self, source, frame, colour_space, mask, grow, feather, context, max_side, project='', mask_revision=-1, base_file='', base_colour_space='srgb_display'):
         from .browser import checked_path
         path = checked_path(source)
         description = describe(str(path))
@@ -285,6 +292,17 @@ class ZuraPaintoutFrameCrop:
         if hdr_original is not None and not np.isfinite(hdr_original).all():
             raise ValueError('The HDR source cannot be converted to finite scene-linear pixels. Check its colour space.')
         original = working(torch.from_numpy(encoded.copy())[None].float(), space, 'SDR (sRGB)')[0].cpu().numpy()
+        if base_file:
+            from .frame_layers import load_layer_image
+            base, base_space = load_layer_image(base_file, base_colour_space, original.shape[:2])
+            if hdr_original is not None or is_hdr(base_space):
+                hdr_original = to_linear(torch.from_numpy(base.copy()).float(), base_space).numpy()
+                if not np.isfinite(hdr_original).all():
+                    raise ValueError('The current clean frame contains invalid HDR pixels.')
+                original = sdr_view(torch.from_numpy(hdr_original), True).numpy()
+                space = 'acescg'
+            else:
+                original = working(torch.from_numpy(base.copy())[None].float(), base_space, 'SDR (sRGB)')[0].numpy()
         matte = decode_mask(mask, description['width'], description['height'])
         protection = None
         if project:
@@ -340,6 +358,12 @@ class ZuraPaintoutFrameComposite:
                'master_url': grant(master), 'frame': patch['frame'],
                'colour_space': colour_space, 'preview_colour_space': 'srgb_display',
                'edit_view': patch.get('edit_view', 'SDR'), 'width': result.shape[1], 'height': result.shape[0]}
+        from .frame_layers import encode_layer_mask
+        support = effective_edit_mask(patch.get('delivery_mask', patch['mask']), patch.get('delivery_grow', patch['grow']), patch.get('delivery_feather', patch['feather']), patch.get('delivery_protection', patch.get('protection')))
+        row['layer_mask'] = encode_layer_mask((support > 0).astype(np.float32))
+        row['effective_mask'] = row['layer_mask']
+        if patch.get('target_name'):
+            row.update(target_name=patch['target_name'], target_mask=patch['target_mask'], target_grow=0)
         descriptor = {'filename': png.name, 'subfolder': 'paintout/clean_frames', 'type': 'output'}
         return {'ui': {'zura_frame': [row], 'images': [descriptor]}, 'result': (str(master),)}
 

@@ -49,14 +49,14 @@ export class PaintoutEditor{
     this.guide=el('div');this.guide.className='zp-editor-guide';this.guideTitle=el('strong');this.guideHelp=el('span');this.guide.append(this.guideTitle,this.guideHelp);this.nav.append(this.guide);
     workspace.page.querySelector('.zf-heading').after(this.nav);
     this.projects=el('details');this.projects.className='zp-editor-projects';this.projects.innerHTML='<summary>Projects</summary><div role="group" aria-label="Saved Paintout projects"></div>';workspace.page.querySelector('.zf-heading').append(this.projects);
-    this.projects.ontoggle=async()=>{if(!this.projects.open)return;if(workspace.busy()){this.projects.open=false;return;}const list=this.projects.querySelector('div');list.textContent='Loading projectsâ€¦';try{const projects=await workspace.fetch(endpoint+'/projects');list.replaceChildren();for(const project of projects){const button=el('button',project.name+(project.frames?` Â· ${project.frames} frames`:''));button.type='button';button.title=project.source+' Â· '+new Date(project.updated*1000).toLocaleString();button.onclick=()=>this.openProject(project.id);list.append(button);}if(!projects.length)list.textContent='Add footage to start your first project.';}catch(e){list.textContent=e.message;}};
+    this.projects.ontoggle=async()=>{if(!this.projects.open)return;if(workspace.busy()){this.projects.open=false;return;}const list=this.projects.querySelector('div');list.textContent='Loading projects…';try{const projects=await workspace.fetch(endpoint+'/projects');list.replaceChildren();for(const project of projects){const button=el('button',project.name+(project.frames?` · ${project.frames} frames`:''));button.type='button';button.title=project.source+' · '+new Date(project.updated*1000).toLocaleString();button.onclick=()=>this.openProject(project.id);list.append(button);}if(!projects.length)list.textContent='Add footage to start your first project.';}catch(e){list.textContent=e.message;}};
     this.viewerHost=el('div');this.viewerHost.className='zp-editor-viewer-host';this.viewerHost.hidden=true;
     workspace.page.querySelector('.zf-viewer').append(this.viewerHost);
     this.viewer=new PaintoutMaskViewer(this.viewerHost,{onCommit:()=>{if(this.stage==='mask')this.flushManual().catch(e=>this.status(e.message));else this.saveCleanMask();},onChange:change=>this.maskChanged(change)});
     this.timelineHost=el('div');this.timelineHost.className='zp-editor-timeline-host';workspace.page.querySelector('.zf-viewer').after(this.timelineHost);
     this.timeline=new PaintoutTimeline(this.timelineHost,{onAddMask:()=>this.beginMaskSegment('add').catch(e=>this.status(e.message)),onSegmentSelect:id=>this.selectMaskBar(id),onMaskTrim:(id,start,end)=>this.editMaskBar(id,{start,end}),onSegmentRemove:id=>this.editMaskBar(id,{delete:true}),onTrim:(start,end,commit)=>this.setTimelineRange(start,end,commit),onSeek:f=>workspace.seek(f),onCreate:f=>this.createFrame(f),onSelect:i=>this.selectFrame(i),onRemove:i=>this.removeFrame(i),onMaskSelect:async f=>{if(workspace.busy())return;await this.setStage('mask');workspace.seek(f);}});
     this.tools=el('section');this.tools.className='zp-editor-tools';this.tools.setAttribute('aria-label','Paintout editing tools');this.timelineHost.after(this.tools);
-    this.tools.innerHTML=`<div class="zp-editor-mask-intro"><strong>Select, then track</strong><span>Everything covered in red will be removed. Leave anything you want to keep unmasked.</span><button type="button" data-editor="import-mask">Import mask video</button><span>Already have a mask? Import a black-and-white video. White removes, black keeps. Use the original footageâ€™s size, frame rate and full length.</span></div>
+    this.tools.innerHTML=`<div class="zp-editor-mask-intro"><strong>Select, then track</strong><span>Everything covered in red will be removed. Leave anything you want to keep unmasked.</span><button type="button" data-editor="import-mask">Import mask video</button><span>Already have a mask? Import a black-and-white video. White removes, black keeps. Use the original footage’s size, frame rate and full length.</span></div>
       <div class="zp-editor-tool-row"><div class="zp-editor-tool-group" role="group" aria-label="Mask tools"><button type="button" data-tool="include" title="Click on the subject to include it">${maskIcons['circle-plus']}<span>Select subject</span></button><button type="button" data-tool="exclude" title="Click on unwanted areas to exclude them">${maskIcons['circle-minus']}<span>Exclude area</span></button><button type="button" data-tool="brush" title="Draw the removal mask manually">${maskIcons.paintbrush}<span>Paint mask</span></button><button type="button" data-tool="protect" title="Erase from the removal mask">${maskIcons.eraser}<span>Erase mask</span></button><button type="button" data-tool="pan" title="Drag to move the view. Scroll to zoom.">${maskIcons.hand}<span>Pan</span></button></div><button type="button" data-editor="undo">${maskIcons['undo-2']}<span>Undo</span></button><button type="button" data-editor="clear">Clear selection</button></div>
       <div class="zp-editor-selection-row"><p class="zp-editor-tool-help" data-editor="tool-help"></p><button type="button" data-editor="selection" hidden aria-hidden="true" tabindex="-1">Update mask</button><p class="zp-editor-selection-cue" data-editor="selection-cue"></p></div>
       <div class="zp-editor-tool-row"><label data-editor="brush-control">Brush size <output data-editor="brush-value">32 px</output><input data-editor="brush" type="range" min="1" max="200" value="32" /></label><label title="Expand the hard removal boundary in original plate pixels">Expand mask <output data-editor="grow-value">0 px</output><input data-editor="grow" type="range" min="0" max="100" value="0" /></label><label title="Only changes how the red overlay is displayed, not the mask">Red overlay<input data-editor="opacity" type="range" min="0" max="100" value="45" /></label></div>
@@ -68,11 +68,11 @@ export class PaintoutEditor{
 
         <details class="zp-editor-segments"><summary data-editor="segments-label">Tracking segments</summary><ol data-editor="segments"></ol></details>
         <details><summary>Absence / mask history</summary><div class="zp-editor-tool-row"><button type="button" data-editor="absent">Subject absent in section</button><button type="button" data-editor="previous-mask">Previous mask pass</button><button type="button" data-editor="next-mask">Next mask pass</button></div></details></div>
-      <div class="zp-editor-clean-actions" hidden><strong data-editor="frame-label">Add a clean frame on the timeline</strong><label class="zp-editor-description">Replacement background<input data-editor="instruction" value="Remove the selected object and reconstruct the background." /></label><button type="button" class="zp-editor-primary" data-editor="clean">Clean with FLUX 3</button><button type="button" data-editor="download">Download original</button><button type="button" data-editor="reference" hidden>Download frame reference</button><button type="button" data-editor="import">Import edited frame</button><label data-editor="version-control" hidden>Saved version<select data-editor="version" aria-label="Saved clean-frame version"></select></label><button type="button" data-editor="accept" hidden>Use clean frame</button><button type="button" data-editor="reject" hidden>Discard result (X)</button></div>
+      <div class="zp-editor-clean-actions" hidden><strong data-editor="frame-label">Add a clean frame on the timeline</strong><label class="zp-editor-description">Cleanup instruction<input data-editor="instruction" value="Remove the selected object and reconstruct the background." /></label><button type="button" class="zp-editor-primary" data-editor="clean">Clean with FLUX 3</button><button type="button" data-editor="download">Download original</button><button type="button" data-editor="reference" hidden>Download frame reference</button><button type="button" data-editor="import">Import edited frame</button><label data-editor="version-control" hidden>Saved version<select data-editor="version" aria-label="Saved clean-frame version"></select></label><button type="button" data-editor="reject" hidden>Remove all paint layers</button></div>
       <p data-editor="status" role="status" aria-live="polite"></p><div data-editor="job" hidden><progress aria-label="Mask or frame processing progress"></progress><span data-editor="job-label">Queued</span><button type="button" data-editor="cancel">Cancel this run</button></div>`;
     const nextRender=el('button','Next: render');nextRender.type='button';nextRender.dataset.editor='render-next';nextRender.onclick=()=>this.setStage('render');this.tools.querySelector('.zp-editor-clean-actions').append(nextRender);
-    this.$('instruction').placeholder='e.g. Empty asphalt road with matching lane markings.';
-    this.$('instruction').title='Describe what should replace the painted object. For example: empty road, continuing the existing lane markings and lighting.';
+    this.$('instruction').placeholder='e.g. Remove only the silver car. Keep the other vehicles.';
+    this.$('instruction').title='Describe what to remove and how the replacement should look. Only painted pixels may change. Erase from the mask to protect nearby objects.';
     const viewerToolbar=this.tools.querySelector('.zp-editor-tool-row');
     const maskFlow=el('div');maskFlow.className='zp-editor-mask-flow';
     const selectionRow=this.tools.querySelector('.zp-editor-selection-row'),maskActions=this.tools.querySelector('.zp-editor-mask-actions');
@@ -92,7 +92,7 @@ export class PaintoutEditor{
     }
     maskSettings.className='zp-editor-mask-sizing';this.viewerToolbar.append(maskSettings);
     this.$('import-mask').title='Import a black-and-white mask video: white removes, black keeps. Match the plate dimensions, frame rate and length.';
-    const resetMaskEdit=el('button','Reset frame edit');resetMaskEdit.type='button';resetMaskEdit.dataset.editor='reset-mask-edit';resetMaskEdit.hidden=true;resetMaskEdit.title='Remove this frameâ€™s mask correction and restore the tracked mask';resetMaskEdit.onclick=()=>this.resetMaskFrame();this.$('clear').after(resetMaskEdit);
+    const resetMaskEdit=el('button','Reset frame edit');resetMaskEdit.type='button';resetMaskEdit.dataset.editor='reset-mask-edit';resetMaskEdit.hidden=true;resetMaskEdit.title='Remove this frame’s mask correction and restore the tracked mask';resetMaskEdit.onclick=()=>this.resetMaskFrame();this.$('clear').after(resetMaskEdit);
     this.$('undo').title='Undo the last edit';this.$('clear').title='Clear the mask and selection on this frame';
     this.tools.querySelector('.zp-editor-segment-actions').dataset.timelineOnly='true';
     this.tools.querySelector('.zp-editor-segments').dataset.timelineOnly='true';
@@ -116,8 +116,9 @@ export class PaintoutEditor{
     for(const [key,field]of [['range-in','range-start'],['range-out','range-end']])this.$(key).onclick=()=>{this.$(field).value=this.w.playhead;this.customRange=true;this.saveSegmentRange();this.updateControls();};
     this.$('previous-mask').onclick=()=>this.selectMask(-1);this.$('next-mask').onclick=()=>this.selectMask(1);
     this.maskReview=el('div');this.maskReview.className='zp-editor-mask-review';this.maskReview.hidden=true;this.maskReview.innerHTML='<span data-editor="review-count"></span><button type="button" data-editor="review-next">Review next change</button><small data-editor="review-reason"></small>';this.tools.querySelector('.zp-editor-mask-actions').append(this.maskReview);this.$('review-next').onclick=()=>this.nextMaskReview().catch(error=>this.status(error.message));
-    this.$('instruction').oninput=()=>{const anchor=this.selected();if(anchor){anchor.editPrompt=this.$('instruction').value;this.w.save();}};this.$('clean').onclick=()=>this.cleanFrame();this.$('accept').onclick=()=>this.acceptFrame();this.$('reject').onclick=()=>this.discardFrame();
+    this.$('instruction').oninput=()=>{const anchor=this.selected();if(anchor){anchor.editPrompt=this.$('instruction').value;this.w.save();}this.updateControls();};this.$('clean').onclick=()=>this.cleanFrame();this.$('reject').onclick=()=>this.discardFrame();
     this.$('version').onchange=()=>this.selectVersion(this.$('version').value);
+    this.layersPanel=el('section');this.layersPanel.className='zp-editor-paint-layers';this.layersPanel.setAttribute('aria-label','Paint layers');this.layersPanel.hidden=true;this.tools.querySelector('.zp-editor-clean-actions').after(this.layersPanel);
     this.$('reference').onclick=()=>{const a=this.selected();if(!a?.exportReference)return;const blob=new Blob([JSON.stringify(a.exportReference,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=el('a');link.href=url;link.download=`${this.project}_frame_${String(a.frame).padStart(6,'0')}.reference.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};this.$('download').onclick=()=>this.downloadFrame();this.$('import').onclick=()=>this.importFrame();this.$('cancel').onclick=()=>this.cancel();
     this.importReview=el('section');this.importReview.className='zp-editor-import-review';this.importReview.hidden=true;
     this.importReview.innerHTML='<strong>Review imported edit</strong><p data-editor="import-differences"></p><div><button type="button" data-editor="import-current">Keep current repair area</button><button type="button" class="zp-editor-primary" data-editor="import-include">Include highlighted edits</button></div><small>This changes this clean guide only. Your video removal mask stays as set in Mask.</small>';
@@ -126,9 +127,6 @@ export class PaintoutEditor{
     this.tools.append(this.importReview);this.$('import-current').onclick=()=>this.acceptImported('current');this.$('import-include').onclick=()=>this.acceptImported('include');
     const compare=el('button','Show original');compare.type='button';compare.dataset.editor='compare';this.tools.querySelector('.zp-editor-clean-actions').append(compare);
     compare.onclick=()=>this.compareFrame();
-    this.discardShortcut=event=>{if(event.key.toLowerCase()!=='x'||event.ctrlKey||event.metaKey||event.altKey||event.repeat||event.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(!workspace.page.isConnected||workspace.page.closest('[hidden]')||this.stage!=='clean'||!this.candidate||workspace.busy())return;event.preventDefault();this.discardFrame();};
-    document.addEventListener('keydown',this.discardShortcut);
-
     this.viewerHost.ondragover=e=>{e.preventDefault();};this.viewerHost.ondrop=e=>{e.preventDefault();const file=e.dataTransfer?.files?.[0];if(file)this.importDropped(file);};
     workspace.api.addEventListener?.('executing',event=>{
       const d=event.detail,job=this.toolJob;if(!job||!d?.node||(d.prompt_id&&d.prompt_id!==job.id)||!job.stages[d.node])return;
@@ -137,7 +135,7 @@ export class PaintoutEditor{
     workspace.api.addEventListener?.('progress',event=>{
       const d=event.detail,job=this.toolJob;if(!job||(d?.prompt_id?d.prompt_id!==job.id:!job.node)||!Number.isFinite(d.value)||!Number.isFinite(d.max)||d.max<=0)return;
       const bar=this.$('job').querySelector('progress');bar.max=d.max;bar.value=d.value;this.jobProgress=true;
-      this.$('job-label').textContent=`${job.stages[d.node||job.node]||job.phase||'Processing'} Â· ${Math.round(d.value/d.max*100)}%`;
+      this.$('job-label').textContent=`${job.stages[d.node||job.node]||job.phase||'Processing'} · ${Math.round(d.value/d.max*100)}%`;
     });
     this.morph(false);this.update();
   }
@@ -262,7 +260,7 @@ export class PaintoutEditor{
     this.$('segments-label').textContent=`Tracking segments (${passes.length})`;
     const list=this.$('segments');list.replaceChildren();
     if(!passes.length){list.append(el('li','No tracked segments yet. Select a subject and track, or add another mask.'));return;}
-    for(const pass of passes){const row=el('li'),button=el('button',`Frames ${pass.start_frame}â€“${pass.end_frame} Â· ${pass.operation==='add'?'Added mask':pass.operation==='absent'?'Subject absent':pass.operation==='protect'?'Protected region':'Tracked repair'}`);button.type='button';button.disabled=this.w.busy();button.onclick=()=>this.w.seek(pass.metadata?.frame??pass.start_frame);row.append(button);list.append(row);}
+    for(const pass of passes){const row=el('li'),button=el('button',`Frames ${pass.start_frame}–${pass.end_frame} · ${pass.operation==='add'?'Added mask':pass.operation==='absent'?'Subject absent':pass.operation==='protect'?'Protected region':'Tracked repair'}`);button.type='button';button.disabled=this.w.busy();button.onclick=()=>this.w.seek(pass.metadata?.frame??pass.start_frame);row.append(button);list.append(row);}
   }
   maskReviewRanges(){
     const state=this.w.state,document=this.document;
@@ -331,7 +329,7 @@ export class PaintoutEditor{
       w.selected=Number.isInteger(draft.editorSelected)&&w.state.anchors[draft.editorSelected]?draft.editorSelected:-1;w.playhead=number(draft.editorPlayhead??draft.startFrame??0,0,sourceInfo.frames-1);
       this.source=draft.source;this.projectSource=draft.source;this.project=doc.id;this.document=doc;this.revision=doc.revision;this.frameKey=null;this.subjectChanged=false;this.customRange=false;this.selectionDirty=false;this.showOriginal=false;
       this.projects.open=false;this.toolJob=w.state.editorJob?.source===draft.source?w.state.editorJob:null;
-      this.stage=draft.editorStage==='trim'?'trim':w.state.mode==='full'||w.result?'render':['trim','mask','clean','render'].includes(draft.editorStage)?draft.editorStage:'mask';this.active=['mask','clean'].includes(this.stage);this.candidate=this.stage==='clean'?this.selected()?.candidate||null:null;
+      this.stage=draft.editorStage==='trim'?'trim':w.state.mode==='full'||w.result?'render':['trim','mask','clean','render'].includes(draft.editorStage)?draft.editorStage:'mask';this.active=['mask','clean'].includes(this.stage);this.candidate=this.stage==='clean'?this.selected()?.candidate||null:null;if(this.candidate&&!this.candidate.review){this.addPaintLayer(this.selected(),{...this.candidate,method:'flux3',layer_mask:this.candidate.layer_mask||this.candidate.effective_mask||this.candidate.target_mask});this.candidate=null;}
       this.hydrateControls();w.view=this.stage==='clean'?'anchor':'mask';w.renderAnchors();w.render();if(this.active)await this.frameChanged(true);else w.preview(this.stage==='trim'?'source':w.result?'result':'source');if(this.toolJob)this.startPolling();if(w.job)w.startPolling();w.save();
     }catch(e){this.status(e.message);}finally{this.openingProject=false;this.w.render();}
   }
@@ -374,7 +372,7 @@ export class PaintoutEditor{
   }
   async loadDocument(){const doc=await this.w.fetch(endpoint+'/project',{id:this.project});this.document=doc;this.revision=doc.revision;this.w.state.maskCoverage=doc.mask_coverage;return doc;}
   async setStage(stage){
-    if(this.w.busy()||!['trim','mask','clean','render'].includes(stage))return;if(this.w.state.clipTrimConfirmed===false&&stage!=='trim')stage='trim';if(stage!==this.stage){this.autoPreviewPending=false;clearTimeout(this.autoPreviewTimer);this.maskEditVersion++;}try{await this.flushManual();}catch(e){this.status(e.message);return;}this.closed=false;this.stage=stage;this.w.state.editorStage=stage;if(stage==='clean')this.$('instruction').value=this.selected()?.editPrompt||'Remove the selected object and reconstruct the background.';this.active=['mask','clean'].includes(stage)&&!!this.w.state.source;this.candidate=stage==='clean'?this.selected()?.candidate||null:null;
+    if(this.w.busy()||!['trim','mask','clean','render'].includes(stage))return;if(this.w.state.clipTrimConfirmed===false&&stage!=='trim')stage='trim';if(stage!==this.stage){this.autoPreviewPending=false;clearTimeout(this.autoPreviewTimer);this.maskEditVersion++;}try{await this.flushManual();}catch(e){this.status(e.message);return;}this.closed=false;this.stage=stage;this.w.state.editorStage=stage;if(stage==='clean')this.$('instruction').value=this.selected()?.editPrompt||'Remove the selected object and reconstruct the background.';this.active=['mask','clean'].includes(stage)&&!!this.w.state.source;this.candidate=stage==='clean'?this.selected()?.candidate||null:null;if(this.candidate&&!this.candidate.review){this.addPaintLayer(this.selected(),{...this.candidate,method:'flux3',layer_mask:this.candidate.layer_mask||this.candidate.effective_mask||this.candidate.target_mask});this.candidate=null;}
     if(stage==='clean'&&!this.selected()&&this.w.state.source)this.createFrame(this.w.playhead);
     if(this.active){this.w.view=stage==='clean'?'anchor':'mask';this.w.comparison?.hide();if(this.w.$('comparison'))this.w.$('comparison').hidden=true;this.w.$('video').pause();this.w.$('video').hidden=true;this.w.$('image-slot').hidden=true;await this.frameChanged(true);}
     else this.w.preview(stage==='trim'?'source':this.w.result?'result':'source');
@@ -403,7 +401,7 @@ export class PaintoutEditor{
   update(){
     const w=this.w,has=!!w.state.source;
     w.page.classList.toggle('zp-editor-open',has);w.page.dataset.editorStage=this.stage;
-    this.timelineHost.hidden=!has||w.state.mode==='full'&&this.stage!=='trim';this.tools.hidden=!has||!['mask','clean'].includes(this.stage)||w.state.mode==='full';this.nav.hidden=!has;this.trimTools.hidden=!has||this.stage!=='trim';this.trimTools.querySelector('button').disabled=this.busy();this.trimTools.querySelector('[data-trim-summary]').textContent=`Frames ${w.state.startFrame}â€“${w.state.startFrame+w.state.frameCount-1} Â· ${w.state.frameCount} frames Â· ${(w.state.frameCount/w.fps()).toFixed(2)} s`;
+    this.timelineHost.hidden=!has||w.state.mode==='full'&&this.stage!=='trim';this.tools.hidden=!has||!['mask','clean'].includes(this.stage)||w.state.mode==='full';this.nav.hidden=!has;this.trimTools.hidden=!has||this.stage!=='trim';this.trimTools.querySelector('button').disabled=this.busy();this.trimTools.querySelector('[data-trim-summary]').textContent=`Frames ${w.state.startFrame}–${w.state.startFrame+w.state.frameCount-1} · ${w.state.frameCount} frames · ${(w.state.frameCount/w.fps()).toFixed(2)} s`;
     this.viewerHost.hidden=!this.active||!has||w.state.mode==='full';
     if(this.active&&has&&w.state.mode!=='full'){w.$('video').hidden=true;w.$('image-slot').hidden=true;}
     w.$('anchors-section').hidden=true;
@@ -413,7 +411,7 @@ export class PaintoutEditor{
       anchors:w.state.anchors,selected:w.selected,stage:this.stage,newMaskPending:!!this.maskSegment(),maskSegments:this.document?.mask_segments||[],selectedMask:this.activeMaskId(),busy:w.busy(),thumbnail:a=>a.file?w.thumbnail(a.preview_file||a.file,0,a.preview_file?(a.preview_colour_space||'srgb_display'):a.colour_space):w.thumbnail(w.state.source,a.frame,w.state.sourceColour),maskRanges:[...(this.document?.mask_history||[]).filter(pass=>pass.revision<=w.state.maskRevision).map(pass=>({...pass,status:'tracked'})),...this.maskReviewRanges()]});
     if(has&&this.source!==w.state.source){this.source=w.state.source;this.frameKey=null;this.project=null;this.projectSource=null;this.revision=-1;
       this.customRange=false;this.$('range-start').value=w.state.startFrame;this.$('range-end').value=w.state.startFrame+w.state.frameCount-1;
-      this.ensureProject().then(()=>{if(this.projectSource===w.state.source){this.stage=w.state.editorStage==='trim'||w.state.clipTrimConfirmed===false?'trim':w.state.mode==='full'||w.result?'render':w.state.editorStage||'mask';this.active=['mask','clean'].includes(this.stage);this.candidate=this.stage==='clean'?this.selected()?.candidate||null:null;if(this.active){w.view=this.stage==='clean'?'anchor':'mask';this.frameChanged(true);}else w.preview(this.stage==='trim'?'source':w.result?'result':'source');this.update();}}).catch(e=>this.status(e.message));}
+      this.ensureProject().then(()=>{if(this.projectSource===w.state.source){this.stage=w.state.editorStage==='trim'||w.state.clipTrimConfirmed===false?'trim':w.state.mode==='full'||w.result?'render':w.state.editorStage||'mask';this.active=['mask','clean'].includes(this.stage);this.candidate=this.stage==='clean'?this.selected()?.candidate||null:null;if(this.candidate&&!this.candidate.review){this.addPaintLayer(this.selected(),{...this.candidate,method:'flux3',layer_mask:this.candidate.layer_mask||this.candidate.effective_mask||this.candidate.target_mask});this.candidate=null;}if(this.active){w.view=this.stage==='clean'?'anchor':'mask';this.frameChanged(true);}else w.preview(this.stage==='trim'?'source':w.result?'result':'source');this.update();}}).catch(e=>this.status(e.message));}
     this.updateControls();
   }
   updateControls(){
@@ -441,18 +439,20 @@ export class PaintoutEditor{
     this.tools.querySelector('.zp-editor-mask-intro').hidden=clean;
     this.$('brush-control').hidden=!['brush','protect'].includes(this.tool);
     const help={include:'Click inside the object you want to remove. Add more points if parts are missing. The red mask updates automatically.',exclude:'Click any red area you want to keep. Switch back to Select subject to add more of the object.',brush:'Paint over every part of the object you want to remove. Use Erase mask to tidy the edges, then click Track mask.',protect:'Erase red areas that must stay in the shot. Switch to Paint mask to add areas back.',pan:'Drag to move the view. Scroll to zoom in or out. Press 0 to fit the whole frame.'};
-    this.$('tool-help').textContent=clean&&['brush','protect'].includes(this.tool)?(this.tool==='brush'?'Paint everything FLUX should remove, including shadows or small details. Only this clean frameâ€™s mask changes.':'Erase any area FLUX must keep. Only this clean frameâ€™s mask changes.'):help[this.tool];
+    const growLabel=this.$('grow').closest('label');if(growLabel.firstChild?.nodeType===3)growLabel.firstChild.textContent='Expand mask ';
+    this.$('tool-help').textContent=clean&&['brush','protect'].includes(this.tool)?(this.tool==='brush'?'Paint the area FLUX may change, including shadows. Pixels outside it are kept. Each generation adds a paint layer.':'Erase any area that must stay unchanged. Only this clean frame’s mask changes.'):help[this.tool];
+    if(clean)this.$('grow').closest('label').title='Expand the painted area to remove, in original frame pixels.';
     const selection=this.viewer.getSelection(false),hasSelection=selection.hasMask||selection.positive.length>0;
     this.$('selection').disabled=busy||(!hasSelection&&!this.manualDirty);
     this.$('selection').textContent='Update mask';
     this.$('track').disabled=busy||!selection.hasMask||this.subjectChanged||this.selectionDirty&&!this.manualDirty||!!this.manualSaving||this.autoPreviewPending;
     const previewNeeded=this.selectionDirty||!selection.hasMask;
     this.$('selection').classList.toggle('zp-editor-primary',previewNeeded);
-    this.$('selection-cue').textContent=this.manualSaving?'Saving your painted maskâ€¦':this.autoPreviewPending||pointPreview?'Updating the red mask. You can keep adding points.':selection.hasMask&&!this.selectionDirty?'Happy with the red area? Click Track mask to follow the object through the shot.':hasSelection?'Updating your selectionâ€¦':'Start by clicking the object in the viewer, or choose Paint mask to draw over it.';
+    this.$('selection-cue').textContent=this.manualSaving?'Saving your painted mask…':this.autoPreviewPending||pointPreview?'Updating the red mask. You can keep adding points.':selection.hasMask&&!this.selectionDirty?'Happy with the red area? Click Track mask to follow the object through the shot.':hasSelection?'Updating your selection…':'Start by clicking the object in the viewer, or choose Paint mask to draw over it.';
     const segment=this.maskSegment(),atSeed=segment?.frame===this.w.playhead;
     this.$('clear').hidden=!clean&&!!this.activeMask()?.tracked&&!segment;this.$('reset-mask-edit').hidden=clean||!this.activeMask()?.tracked||!this.activeMask()?.correction_frames?.includes(this.w.playhead)||this.w.playhead<this.activeMask().start||this.w.playhead>this.activeMask().end;
     this.$('segment-draft').hidden=!segment;
-    this.$('segment-label').textContent=segment?`New mask Â· select on frame ${segment.frame}`:'';
+    this.$('segment-label').textContent=segment?`New mask · select on frame ${segment.frame}`:'';
     this.$('segment-help').textContent=segment?(segment.ready?'Ready to track from this frame.':'Select or paint the object. Previous masks are kept.') :'';
     this.$('segment-seed').hidden=!segment||atSeed;
     this.$('track').textContent=segment?'Track new mask':this.activeMask()?.tracked?'Track from here':'Track mask';
@@ -469,17 +469,18 @@ export class PaintoutEditor{
     this.viewer.root.inert=!!outsideMask;
     if(outsideMask){for(const b of this.viewerToolbar.querySelectorAll('button'))b.disabled=true;this.$('selection').disabled=true;this.$('track').disabled=true;this.$('tool-help').textContent=`Outside ${selectedMask.name}. Select another mask bar, extend its ends, or choose Add mask.`;}
     this.$('track').classList.toggle('zp-editor-primary',!this.$('track').disabled);
-    const a=this.selected();this.$('frame-label').textContent=a?`Clean frame ${a.frame} Â· ${a.frame<this.w.state.startFrame||a.frame>=this.w.state.startFrame+this.w.state.frameCount?'Outside trim. Extend the range to use this guide.':({needs_review:'Review result',needs_edit:'Ready to clean',accepted:'Accepted'})[a.status]||'Accepted'}`:'Add a clean frame on the timeline';
-    const versions=this.frameVersions(a),versionSelect=this.$('version');this.$('version-control').hidden=!clean||versions.length<2;
-    versionSelect.replaceChildren(...versions.map((version,index)=>{const option=el('option',`Version ${index+1} Â· ${version.method==='flux3'?'FLUX':version.method==='manual'?'Imported':'Saved'}`);option.value=version.file;return option;}));versionSelect.value=a?.file||'';versionSelect.disabled=busy||!!this.candidate||a?.frame!==this.w.playhead;versionSelect.title=this.candidate?'Use or discard the current result before choosing a saved version.':'Choose the clean image used to guide this frame.';
+    const a=this.selected();this.$('frame-label').textContent=a?`Clean frame ${a.frame} · ${a.frame<this.w.state.startFrame||a.frame>=this.w.state.startFrame+this.w.state.frameCount?'Outside trim. Extend the range to use this guide.':({needs_review:'Review result',needs_edit:'Ready to clean',accepted:'Ready'})[a.status]||'Accepted'}`:'Add a clean frame on the timeline';
+    const versions=this.frameVersions(a),versionSelect=this.$('version');this.$('version-control').hidden=true;
+    versionSelect.replaceChildren(...versions.map((version,index)=>{const option=el('option',`Version ${index+1} · ${version.method==='flux3'?'FLUX':version.method==='manual'?'Imported':'Saved'}`);option.value=version.file;return option;}));versionSelect.value=a?.file||'';versionSelect.disabled=busy||!!this.candidate||a?.frame!==this.w.playhead;versionSelect.title=this.candidate?'Use or discard the current result before choosing a saved version.':'Choose the clean image used to guide this frame.';
     const onFrame=a?.frame===this.w.playhead;this.$('reference').hidden=!clean||!onFrame||!a?.exportReference;
     this.$('compare').hidden=!clean||!onFrame||!(a?.file||this.candidate);this.$('compare').textContent=this.showOriginal?'Show clean frame':'Show original';
-    this.$('reject').hidden=!this.candidate;this.$('accept').hidden=!this.candidate||!!this.candidate.review;
+    this.$('reject').hidden=!clean||!onFrame||!(a?.file||this.candidate||a?.layers?.length);this.$('reject').disabled=busy;this.$('reject').title='Remove every paint layer on this frame and restore its original image. The video mask is kept.';
+    this.renderLayers(a,clean&&onFrame,busy);
     if(clean&&this.candidate)this.$('grow').disabled=true;
     const review=this.candidate?.review;this.importReview.hidden=!clean||!onFrame||!review;this.$('import-differences').textContent=review?`${review.outside_pixels.toLocaleString()} changed pixels lie outside your repair area. Red highlights those changes. Keep the current bounds or include the intended edits.`:'';
     this.$('import-current').disabled=this.$('import-include').disabled=busy||!onFrame;
     if(review){for(const input of this.tools.querySelectorAll('input,select'))if(input!==this.$('opacity'))input.disabled=true;for(const b of this.viewerToolbar.querySelectorAll('button'))b.disabled=true;}
-    this.$('clean').disabled=busy||!onFrame||!!this.candidate;this.$('download').disabled=busy||!onFrame;this.$('import').disabled=busy||!onFrame||!!this.candidate;this.$('accept').disabled=busy||!onFrame;
+    this.$('clean').disabled=busy||!onFrame||!!this.candidate;this.$('download').disabled=busy||!onFrame;this.$('import').disabled=busy||!onFrame||!!this.candidate;
     this.$('job').hidden=!(this.toolJob||this.submitting||this.maskStarting);this.$('cancel').disabled=!this.toolJob;
     this.$('previous-mask').disabled=busy||!this.document?.mask_history?.length;this.$('next-mask').disabled=busy||!this.document?.mask_history?.length;
     const reviewRanges=this.maskReviewRanges(),atFrame=reviewRanges.find(range=>this.w.playhead>=range.start_frame&&this.w.playhead<=range.end_frame);
@@ -501,7 +502,7 @@ export class PaintoutEditor{
       help='Click the object in the viewer, or choose Paint mask and draw over it. Red shows what will be removed.';
       if(this.autoPreviewPending||pointPreview){title='Your mask is updating';help='Keep adding points to include missing parts. Use Exclude area for anything you want to keep.';}
       else if(this.toolJob||this.maskStarting){title='Following your object through the shot';help='Wait for tracking to finish. Then scrub the timeline to check that the red mask follows the object.';}
-      else if(outsideMask){title='This frame is outside the selected mask';help='Select another mask bar, drag the barâ€™s ends to extend it, or click Add mask to start another selection.';}
+      else if(outsideMask){title='This frame is outside the selected mask';help='Select another mask bar, drag the bar’s ends to extend it, or click Add mask to start another selection.';}
       else if(segment){title='Mask the next object or missed section';help=segment.ready?'Check the red selection, set its range with the timeline handles, then click Track new mask. Your previous masks will be kept.':'Click or paint the object on this frame. Your previous masks stay visible in red and will be kept.';}
       else if(this.activeMask()?.tracked||w.state.mask){title='Check that the mask follows the object';help='Scrub through the timeline. Paint or erase missed areas, or click Add mask for another section. When it looks right, click Next: clean frames.';}
       else if(selection.hasMask&&!this.selectionDirty){title='Track your mask through the shot';help='Check that red covers the whole object. Adjust Expand mask if needed, then click Track mask. The timeline handles set how far it tracks.';}
@@ -509,9 +510,9 @@ export class PaintoutEditor{
       title='Make a clean frame to show what replaces the object';
       help='Move to a clear view of the object, then click Add clean frame above the timeline. A clean frame is a still image with the object removed.';
       if(this.toolJob||this.submitting){title='Creating your clean frame';help='Wait for the result, then check that the object is gone and the replacement background looks right.';}
-      else if(this.candidate&&onFrame){title='Check the result before using it';help=this.candidate.review?'Review the highlighted changes below, then choose which edited areas to keep.':'Use Show original to compare. If the object is gone and the background looks right, click Use clean frame. Otherwise click Discard result and try again.';}
-      else if(onFrame&&a?.status==='accepted'){title='Your clean frame is ready';help='Add more clean frames where the view changes, or click Next: render. To improve this frame, paint its removal area and clean it again.';}
-      else if(onFrame){title='Paint what should disappear from this frame';help='Cover the object and any shadow you want removed. Describe the replacement background below, then click Clean with FLUX 3. Or use Download original and Import edited frame to edit it yourself.';}
+      else if(this.candidate&&onFrame){title='Check the imported edit';help=this.candidate.review?'Review the highlighted changes below, then choose which edited areas to keep.':'This paint layer is used automatically. Paint again to add another layer, or delete a layer below.';}
+      else if(onFrame&&a?.status==='accepted'){title='Your clean frame is ready';help='Every paint layer below is used automatically. Paint another area and generate to add a layer. Delete any layer you do not want, or click Next: render.';}
+      else if(onFrame){title='Paint what should disappear from this frame';help='Cover the object and any shadow you want removed, then click Clean with FLUX 3. Paint only the area that may change. Each result is used automatically as a new layer.';}
     }else{
       title=w.result?'Review your finished shot':'Generate the object removal';
       help=w.result?'Play the result and compare it with the source. If it looks right, download your video.':'Check the output format below, then click Generate paintout. Your mask and accepted clean frames will guide the repair.';
@@ -551,7 +552,7 @@ export class PaintoutEditor{
     this.w.state.anchors.push({id:crypto.randomUUID(),frame,file:'',strength:.75,enabled:true,status:'draft',colour_space:this.w.state.sourceColour,versions:[]});
     this.selectFrame(this.w.state.anchors.length-1);this.w.save();
   }
-  selectFrame(index){if(this.manualDirty||this.manualSaving){this.flushManual().then(()=>this.selectFrame(index)).catch(e=>this.status(e.message));return;}if(this.w.busy())return;const a=this.w.state.anchors[index];if(!a)return;this.w.selected=index;this.w.syncAnchorControls?.(index);this.w.playhead=a.frame;this.stage='clean';this.$('instruction').value=a.editPrompt||'Remove the selected object and reconstruct the background.';this.w.state.editorStage='clean';this.w.view='anchor';this.active=true;this.candidate=a.candidate||null;this.tool='brush';this.viewer.setTool('brush');this.w.comparison?.hide();if(this.w.$('comparison'))this.w.$('comparison').hidden=true;this.w.updatePlayhead();this.frameChanged(true);this.update();this.w.save();}
+  selectFrame(index){if(this.manualDirty||this.manualSaving){this.flushManual().then(()=>this.selectFrame(index)).catch(e=>this.status(e.message));return;}if(this.w.busy())return;const a=this.w.state.anchors[index];if(!a)return;this.w.selected=index;this.w.syncAnchorControls?.(index);this.w.playhead=a.frame;this.stage='clean';this.$('instruction').value=a.editPrompt||'Remove the selected object and reconstruct the background.';this.w.state.editorStage='clean';this.w.view='anchor';this.active=true;this.candidate=a.candidate||null;if(this.candidate&&!this.candidate.review){this.addPaintLayer(a,{...this.candidate,method:'flux3',layer_mask:this.candidate.layer_mask||this.candidate.effective_mask||this.candidate.target_mask});this.candidate=null;}this.tool='brush';this.viewer.setTool('brush');this.w.comparison?.hide();if(this.w.$('comparison'))this.w.$('comparison').hidden=true;this.w.updatePlayhead();this.frameChanged(true);this.update();this.w.save();}
   async compareFrame(){try{this.showOriginal=!this.showOriginal;const a=this.selected(),url=this.showOriginal?this.w.thumbnail(this.w.state.source,this.w.playhead,this.w.state.sourceColour,1280):this.candidate?.file?this.w.thumbnail(this.candidate.png_file||this.candidate.file,0,this.candidate.png_file?(this.candidate.preview_colour_space||'srgb_display'):this.candidate.colour_space,1280):this.w.thumbnail(a.preview_file||a.file,0,a.preview_file?(a.preview_colour_space||'srgb_display'):a.colour_space,1280);await this.viewer.setDisplayImage(url);this.viewer.setOpacity(0);this.updateControls();}catch(e){this.status(e.message);}}
   removeFrame(index){if(this.w.busy())return;this.w.state.anchors.splice(index,1);this.w.selected=-1;this.candidate=null;this.w.changed();}
   async downloadFrame(){
@@ -565,7 +566,7 @@ export class PaintoutEditor{
     try{await this.ensureProject();const review=await w.fetch(endpoint+'/review-import',{project:this.project,source:w.state.source,frame:anchor.frame,file:result.file,source_colour_space:w.state.sourceColour,colour_space:result.colour_space,mask:selection.mask,grow:anchor.editGrow??w.state.maskGrow??0,mask_revision:w.state.maskRevision??null});
       if(anchor!==this.selected()||anchor.frame!==w.playhead)throw Error('The selected frame changed. Import into the intended frame again.');
       this.candidate={...result,method:'manual',review,anchor:anchor.id||anchor.frame};anchor.candidate=this.candidate;if(!anchor.file)anchor.status='needs_review';this.frameKey=null;w.save();this.status('Review the red changes outside your repair, then choose which area to keep.');
-    }finally{this.importing=false;w.render();if(this.active)await this.frameChanged(true);}
+    }finally{this.importing=false;w.save();w.render();if(this.active)await this.frameChanged(true);}
   }
   async acceptImported(scope){
     const w=this.w,anchor=this.selected(),candidate=this.candidate;
@@ -573,8 +574,9 @@ export class PaintoutEditor{
     this.importing=true;this.updateControls();
     try{while(this.saving)await new Promise(resolve=>setTimeout(resolve,10));await this.loadDocument();
       const result=await w.fetch(endpoint+'/accept-import-review',{project:this.project,source:w.state.source,frame:anchor.frame,token:candidate.review.token,scope,expected_revision:this.revision});
-      anchor.versions=this.frameVersions(anchor);anchor.versions.push({...result,method:'manual'});Object.assign(anchor,{file:result.file,preview_file:result.preview_file||'',colour_space:result.colour_space,status:'accepted',editMask:result.mask,editGrow:0});delete anchor.candidate;this.candidate=null;this.frameKey=null;w.syncAnchorControls?.(w.selected);w.save();this.status(scope==='include'?'Imported edits included in this guide. The video mask is unchanged.':'Imported frame accepted. Pixels outside the repair remain identical to the source.');
-    }catch(error){this.status(error.message);}finally{this.importing=false;w.render();if(this.active)await this.frameChanged(true);}
+      const retained=this.ensureLayers(anchor),stack=retained.length?await w.fetch(endpoint+'/compose-layers',{project:this.project,source:w.state.source,frame:anchor.frame,colour_space:w.state.sourceColour,expected_revision:this.revision,layers:[...retained.map(layer=>({file:layer.file,colour_space:layer.colour_space,mask:layer.layer_mask})),{file:result.file,colour_space:result.colour_space,mask:result.mask}]}):result;
+      this.addPaintLayer(anchor,{...result,method:'manual',layer_mask:result.mask,prompt:'Imported edited frame'});Object.assign(anchor,{file:stack.file,preview_file:stack.png_file||stack.preview_file||'',preview_colour_space:stack.preview_colour_space||'srgb_display',colour_space:stack.colour_space,editMask:result.mask,editGrow:0});delete anchor.candidate;this.candidate=null;this.frameKey=null;w.syncAnchorControls?.(w.selected);w.save();this.status(scope==='include'?'Imported edits included in this guide. The video mask is unchanged.':'Imported frame accepted. Pixels outside the repair remain identical to the source.');
+    }catch(error){this.status(error.message);}finally{this.importing=false;w.save();w.render();if(this.active)await this.frameChanged(true);}
   }
   async importFrame(){
     if(this.w.busy()||this.candidate)return;const index=this.w.selected,anchor=this.selected();if(index<0||anchor?.frame!==this.w.playhead)return;
@@ -587,7 +589,7 @@ export class PaintoutEditor{
     try{
       if(!/\.(png|exr|tiff?)$/i.test(file.name))throw Error('Choose an edited PNG, TIFF or EXR frame.');
       if(file.size>100*1024*1024)throw Error('The edited frame exceeds 100 MB.');
-      await this.ensureProject();this.importing=true;this.updateControls();this.status('Checking edited frame dimensionsâ€¦');
+      await this.ensureProject();this.importing=true;this.updateControls();this.status('Checking edited frame dimensions…');
       const body=new FormData();body.append('project',this.project);body.append('source',source);body.append('frame',String(anchor.frame));body.append('colour_space',anchor.colour_space||this.w.state.sourceColour);body.append('file',file,file.name);
       const response=await this.w.api.fetchApi(endpoint+'/import-frame',{method:'POST',body});
       const result=await response.json();if(!response.ok)throw Error(result.error||'The edited frame could not be imported.');
@@ -607,7 +609,7 @@ export class PaintoutEditor{
       while(this.saving)await new Promise(resolve=>setTimeout(resolve,20));
       while(this.manualDirty){
         const version=this.manualVersion,frame=this.viewer.frame,selection=this.viewer.getSelection(),project=this.project;
-        this.status('Saving mask correction on frame '+frame+'â€¦');
+        this.status('Saving mask correction on frame '+frame+'…');
         const doc=await this.w.fetch(endpoint+'/paint-mask',{project,source:this.w.state.source,frame,mask:selection.mask,segment_id:this.activeMaskId(),expected_revision:this.revision,expected_mask_revision:this.w.state.maskRevision??null});
         if(this.project!==project)throw Error('The shot changed before the mask correction could be saved.');
         this.document=doc;this.revision=doc.revision;this.w.state.maskProject=doc.id;this.w.state.maskRevision=doc.mask_revision;this.w.state.maskCoverage=doc.mask_coverage;
@@ -621,7 +623,7 @@ export class PaintoutEditor{
   }
   async runMask(single,operation){
     if(this.w.busy())return;
-    let requestVersion=this.maskEditVersion;this.maskStarting=true;this.maskPreviewStarting=!!single;this.jobProgress=null;this.$('job').querySelector('progress').removeAttribute('value');this.$('job-label').textContent=single?'Updating maskâ€¦':'Preparing trackingâ€¦';this.w.render();
+    let requestVersion=this.maskEditVersion;this.maskStarting=true;this.maskPreviewStarting=!!single;this.jobProgress=null;this.$('job').querySelector('progress').removeAttribute('value');this.$('job-label').textContent=single?'Updating mask…':'Preparing tracking…';this.w.render();
     try{
       if(this.w.modelInfo?.ZuraPaintoutMaskPass&&!this.w.modelInfo.ZuraPaintoutMaskPass.input?.optional?.segment_id)throw Error('Restart ComfyUI once to enable the new mask timeline, then refresh this page.');
       if(!single)await this.flushManual();
@@ -654,14 +656,16 @@ export class PaintoutEditor{
   async cleanFrame(){
     if(this.w.busy()||this.candidate)return;
     try{const a=this.selected();if(!a||a.frame!==this.w.playhead)throw Error('Select the clean-frame card at the frame you want to edit.');const selection=this.viewer.getSelection();
-      const availability=frameEditAvailability(this.w.modelInfo);if(!availability.ready)throw Error('Frame cleaning needs: '+availability.missing.join(', '));
-      const graph=buildFrameEditGraph({source:this.w.state.source,frame:a.frame,colour_space:this.w.state.sourceColour,mask:selection.mask,
+      const availability=frameEditAvailability(this.w.modelInfo,{prompt:this.$('instruction').value});if(!availability.ready)throw Error('Frame cleaning needs: '+availability.missing.join(', '));
+      if(!this.w.modelInfo.ZuraPaintoutFrameCrop?.input?.optional?.base_file)throw Error('Restart ComfyUI to enable paint layers before adding another edit.');
+      if(this.ensureLayers(a).length>=32)throw Error('This frame has 32 paint layers. Delete a layer before adding another.');
+      const graph=buildFrameEditGraph({source:this.w.state.source,frame:a.frame,colour_space:this.w.state.sourceColour,base_file:a.file||'',base_colour_space:a.colour_space||this.w.state.sourceColour,mask:selection.mask,
         grow:a.editGrow??this.w.state.maskGrow,feather:0,project:this.w.state.maskProject,mask_revision:this.w.state.maskRevision,context:128,max_side:1024,seed:a.editSeed??this.w.state.seed,prompt:this.$('instruction').value},this.w.modelInfo);
-      await this.queue(graph,'frame',a.id||a.frame);
+      await this.queue(graph,'frame',a.id||a.frame,{layerMask:selection.mask,layerPrompt:this.$('instruction').value,layerSeed:a.editSeed??this.w.state.seed});
     }catch(e){this.status(e.message);}
   }
   async queue(graph,kind,anchor,details={}){
-    this.submitting=true;this.jobProgress=null;this.$('job').querySelector('progress').removeAttribute('value');this.$('job-label').textContent=kind==='mask'?'Submitting maskâ€¦':'Submitting frame cleanupâ€¦';this.status('');this.w.render();
+    this.submitting=true;this.jobProgress=null;this.$('job').querySelector('progress').removeAttribute('value');this.$('job-label').textContent=kind==='mask'?'Submitting mask…':'Submitting frame cleanup…';this.status('');this.w.render();
     try{const response=await this.w.fetch('/prompt',{prompt:graph,client_id:this.w.api.clientId,extra_data:{zura_paintout_editor:true}});
       if(!response.prompt_id)throw Error('ComfyUI did not confirm the run. Check the queue before retrying.');
       this.toolJob={id:response.prompt_id,kind,anchor,...details,source:this.w.state.source,frame:this.w.playhead,phase:'Queued',stages:Object.fromEntries(Object.entries(graph).map(([id,n])=>[id,n._meta?.title||n.class_type]))};
@@ -676,7 +680,7 @@ export class PaintoutEditor{
         const queue=await this.w.fetch('/queue');if(this.toolJob!==job)return;
         const running=(queue.queue_running||[]).some(item=>item[1]===job.id),present=running||(queue.queue_pending||[]).some(item=>item[1]===job.id);
         this.missingPolls=present?0:(this.missingPolls||0)+1;
-        if(this.missingPolls<2){if(!this.jobProgress)this.$('job-label').textContent=running?(job.phase&&job.phase!=='Queued'?job.phase:'Processing mask or frame in ComfyUIâ€¦'):'Queued in ComfyUI';return;}
+        if(this.missingPolls<2){if(!this.jobProgress)this.$('job-label').textContent=running?(job.phase&&job.phase!=='Queued'?job.phase:'Processing mask or frame in ComfyUI…'):'Queued in ComfyUI';return;}
         this.toolJob=null;this.w.state.editorJob=null;clearInterval(this.timer);this.timer=null;this.missingPolls=0;this.w.save();this.w.render();this.status('This run is no longer in the ComfyUI queue. Your accepted frames and masks are saved.');return;
       }
       this.missingPolls=0;
@@ -704,19 +708,63 @@ export class PaintoutEditor{
       }
       else if(frame&&job.source===this.w.state.source){
         const anchor=this.w.state.anchors.find(a=>String(a.id||a.frame)===String(job.anchor));
-        if(anchor){anchor.candidate={...frame,anchor:job.anchor};if(!anchor.file)anchor.status='needs_review';this.candidate=anchor.candidate;await this.viewer.setFrame(this.w.thumbnail(frame.png_file||frame.file,0,frame.png_file?(frame.preview_colour_space||'srgb_display'):frame.colour_space,1280),frame.width,frame.height,frame.frame);this.viewer.setOpacity(0);this.status('Review the cleaned frame, then choose Use clean frame or keep the previous version.');}
+        if(anchor){
+          this.addPaintLayer(anchor,{...frame,method:'flux3',prompt:job.layerPrompt||anchor.editPrompt,seed:job.layerSeed,layer_mask:frame.layer_mask||frame.effective_mask||frame.target_mask||job.layerMask});
+          this.candidate=null;this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);
+          await this.frameChanged(true);this.status('Paint layer added and used automatically. Paint another area to add a layer, or delete any layer below.');
+        }
         else this.status('The frame finished, but its guide card was removed. The result is available in ComfyUI history.');
       }
       else{const failure=entry.status?.messages?.find(m=>m[0]==='execution_error')?.[1];this.status(failure?.exception_message||'Run stopped without a saved result. Your accepted frames and masks are unchanged.');}
       this.w.save();this.w.render();
     }catch(e){this.status('Reconnecting to your run: '+e.message);}finally{this.polling=false;if(!this.toolJob){if(this.manualDirty)this.flushManual().catch(error=>this.status(error.message));else if(this.autoPreviewPending)this.scheduleMaskPreview(0);}}
   }
-  discardFrame(){
-    if(this.w.busy()||!this.candidate)return;
-    const anchor=this.selected();if(anchor){delete anchor.candidate;if(!this.candidate.review)anchor.editSeed=((anchor.editSeed??Number(this.w.state.seed)) + 1)%2147483647;if(!anchor.file)anchor.status='draft';}
-    this.candidate=null;this.frameKey=null;this.w.save();this.frameChanged(true);this.updateControls();this.status('Result discarded. Your mask and saved clean versions are kept.');
+  fullFrameMask(){
+    const canvas=document.createElement('canvas');canvas.width=this.w.sourceInfo.width;canvas.height=this.w.sourceInfo.height;
+    const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);return canvas.toDataURL('image/png');
   }
-  acceptFrame(){const result=this.candidate,a=this.selected();if(!result||result.review||!a||a.frame!==this.w.playhead||String(a.id||a.frame)!==String(result.anchor))return;a.versions||=[];if(a.file&&!a.versions.some(v=>v.file===a.file))a.versions.push({file:a.file,preview_file:a.preview_file,preview_colour_space:a.preview_colour_space,colour_space:a.colour_space});a.versions.push({...result,method:'flux3'});Object.assign(a,{file:result.file,preview_file:result.png_file,preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});delete a.candidate;this.candidate=null;this.w.syncAnchorControls?.(this.w.selected);this.w.changed();this.frameChanged(true);this.status('Clean frame '+a.frame+' will guide the next paintout.');}
+  ensureLayers(anchor){
+    if(!Array.isArray(anchor.layers))anchor.layers=anchor.file?[{id:crypto.randomUUID(),file:anchor.file,png_file:anchor.preview_file,preview_colour_space:anchor.preview_colour_space,colour_space:anchor.colour_space,layer_mask:this.fullFrameMask(),method:'saved',prompt:'Previously saved clean frame'}]:[];
+    return anchor.layers;
+  }
+  addPaintLayer(anchor,result){
+    const layers=this.ensureLayers(anchor);
+    layers.push({...result,id:crypto.randomUUID(),layer_mask:result.layer_mask||result.effective_mask||result.mask||this.fullFrameMask()});
+    Object.assign(anchor,{file:result.file,preview_file:result.png_file||result.preview_file||'',preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});
+    const blank=document.createElement('canvas');blank.width=this.w.sourceInfo.width;blank.height=this.w.sourceInfo.height;anchor.editMask=blank.toDataURL('image/png');anchor.editGrow=0;
+    delete anchor.candidate;anchor.editSeed=((anchor.editSeed??Number(this.w.state.seed))+1)%2147483647;
+    this.w.save();
+  }
+  renderLayers(anchor,visible,busy){
+    this.layersPanel.hidden=!visible;if(!visible){this.layerPanelKey=null;return;}
+    const layers=this.ensureLayers(anchor),key=JSON.stringify([anchor.id||anchor.frame,busy,!!this.candidate,layers.map(layer=>[layer.id,layer.file,layer.prompt])]);if(key===this.layerPanelKey)return;this.layerPanelKey=key;this.layersPanel.replaceChildren();
+    const heading=el('strong',`Paint layers${layers.length?' · '+layers.length:''}`),help=el('span',layers.length?'All layers are used. Newest on top. Delete a layer to remove its paint.':'Paint an area above, then generate. Each result adds a layer automatically.');
+    this.layersPanel.append(heading,help);const list=el('ol');list.setAttribute('aria-label','Paint layers, newest first');
+    layers.map((layer,index)=>({layer,index})).reverse().forEach(({layer,index})=>{
+      const row=el('li'),image=el('img');image.alt='';image.src=this.w.thumbnail(layer.png_file||layer.preview_file||layer.file,0,layer.png_file||layer.preview_file?(layer.preview_colour_space||'srgb_display'):layer.colour_space,160);
+      const label=el('div');label.append(el('strong',`Layer ${index+1}${layer.method==='manual'?' · Imported':layer.method==='saved'?' · Saved':' · FLUX'}`),el('span',layer.prompt||'Painted repair'));
+      const remove=el('button','Delete layer');remove.type='button';remove.disabled=busy||!!this.candidate;remove.setAttribute('aria-label',`Delete paint layer ${index+1}`);remove.onclick=()=>this.removePaintLayer(layer.id);
+      row.append(image,label,remove);list.append(row);
+    });this.layersPanel.append(list);
+  }
+  async removePaintLayer(id){
+    const anchor=this.selected();if(this.w.busy()||this.candidate||!anchor||anchor.frame!==this.w.playhead)return;
+    const layers=this.ensureLayers(anchor);if(!layers.some(layer=>layer.id===id))return;
+    const remaining=layers.filter(layer=>layer.id!==id);if(!remaining.length){this.discardFrame();return;}
+    this.importing=true;this.updateControls();this.status('Updating paint layers…');
+    try{
+      while(this.saving)await new Promise(resolve=>setTimeout(resolve,20));
+      const result=await this.w.fetch(endpoint+'/compose-layers',{project:this.project,source:this.w.state.source,frame:anchor.frame,colour_space:this.w.state.sourceColour,expected_revision:this.revision,layers:remaining.map(layer=>({file:layer.file,colour_space:layer.colour_space,mask:layer.layer_mask}))});
+      anchor.layers=remaining;Object.assign(anchor,{file:result.file,preview_file:result.png_file||result.preview_file||'',preview_colour_space:result.preview_colour_space||'srgb_display',colour_space:result.colour_space,status:'accepted'});
+      this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.w.save();this.status('Layer deleted. The remaining paint layers are kept.');
+    }catch(error){this.status('Could not delete this layer: '+error.message);}finally{this.importing=false;this.w.save();this.w.render();await this.frameChanged(true);}
+  }
+  discardFrame(){
+    const anchor=this.selected();if(this.w.busy()||!anchor||anchor.frame!==this.w.playhead)return;
+    for(const key of ['file','preview_file','preview_colour_space','colour_space','candidate','versions','layers','editMask','editGrow'])delete anchor[key];
+    const blank=document.createElement('canvas');blank.width=this.w.sourceInfo.width;blank.height=this.w.sourceInfo.height;anchor.editMask=blank.toDataURL('image/png');anchor.editGrow=0;
+    anchor.layers=[];anchor.status='draft';this.candidate=null;this.showOriginal=false;this.frameKey=null;this.w.syncAnchorControls?.(this.w.selected);this.w.save();this.w.render();this.frameChanged(true);this.status('All paint layers removed. You are back to the original frame. Paint a new area to start again.');
+  }
   async selectMask(delta){if(this.w.busy()||!this.project)return;try{const doc=await this.loadDocument(),list=doc.mask_history||[],index=list.findIndex(m=>m.revision===doc.mask_revision),next=list[index+delta];if(!next)return;const updated=await this.w.fetch(endpoint+'/mask-select',{project:this.project,mask_revision:next.revision,expected_revision:this.revision});this.document=updated;this.revision=updated.revision;this.w.state.maskRevision=updated.mask_revision;this.w.state.maskCoverage=updated.mask_coverage;await this.frameChanged(true);this.w.changed();}catch(e){this.status(e.message);}}
   async cancel(){this.autoPreviewPending=false;clearTimeout(this.autoPreviewTimer);if(!this.toolJob)return;try{const id=this.toolJob.id;await this.w.fetch('/queue',{delete:[id]});await this.w.fetch('/interrupt',{prompt_id:id});this.status('Cancellation requested for this run.');}catch(e){this.status(e.message);}}
   close(){this.closed=true;this.autoPreviewPending=false;clearTimeout(this.autoPreviewTimer);this.previewSequence++;clearTimeout(this.saveTimer);clearInterval(this.timer);this.timer=null;this.flushManual().then(()=>this.persist()).catch(e=>this.status(e.message));}

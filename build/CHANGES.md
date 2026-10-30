@@ -9,7 +9,7 @@ Zura Paintout develops the author's existing Zura Nodes paintout workflow. It is
 | Targeted repair adapter | Obscura Remova; compatibility and source notes are in the model guide |
 | Scene clean plate adapter | Lightricks LTX clean-plate adapter |
 | Artist preparation | Interactive trim, hard masks, per-frame corrections and independent tracking segments |
-| Clean guides | Timeline cards, precise FLUX crop-and-stitch, independent edit masks, candidate acceptance, saved versions and external-edit difference review |
+| Clean guides | Timeline cards, precise FLUX crop-and-stitch, independent edit masks, automatically used paint layers with individual deletion and external-edit difference review |
 | Delivery | One plate-space transform shared by video, masks and guides, followed by restoration of original dimensions and timing |
 | Entry packaging | Workflow-first README, native and API workflow files, optional `app/`, build/model guide and structural verification |
 | Format reference | Comfy OpenJutsu's repository presentation; no OpenJutsu application code is included |

@@ -4,6 +4,7 @@ Adds Registry metadata and automatic Python dependency declarations, native Temp
 
 # 30 October 2026 clean-frame removal fix
 
+- Show a plain-language next action above the viewer throughout trimming, masking, tracking, clean-frame review and rendering. Instructions stay visible on narrow screens. Accepted clean frames expose Next: render beside the editing controls.
 - FLUX receives a single reference with the painted target erased, so the unwanted object is no longer reinforced by original and red-overlay references. The artist's instruction controls reconstruction. A controlled test removes the actual failed silver car; unseen background still requires artist review.
 - Model-facing selection now follows mask expansion in original plate pixels, including protected areas. Final compositing keeps the original effective boundary without applying growth twice.
 - Render settings expose mask block size, including Off. This changes LTX guidance, not the final repair boundary.

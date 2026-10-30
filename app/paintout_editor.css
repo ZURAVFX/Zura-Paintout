@@ -46,11 +46,13 @@
 .zp-page.zp-editor-open:not([data-editor-stage=render]) .zps-view-tabs{display:none}
 .zp-page.zp-editor-open:not([data-editor-stage=render]) #zps-scrubber{display:none!important}
 .zp-page.zp-editor-open>.zf-viewer{position:relative;min-height:220px;min-width:0;overflow:hidden}
-.zp-editor-stages{display:flex;align-items:center;gap:6px;min-width:0;color:var(--zc-text,#f2f2f0);font:12px/1.4 'Segoe UI',system-ui,sans-serif}
+.zp-editor-stages{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;color:var(--zc-text,#f2f2f0);font:12px/1.4 'Segoe UI',system-ui,sans-serif}
 .zp-editor-stages>button{flex:none;min-height:36px;padding:8px 14px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--gs-muted,#a3a3aa);cursor:pointer;font:inherit;font-weight:500}
 .zp-editor-stages>button:hover{background:var(--zc-hover,#26262b);color:var(--zc-text,#f2f2f0)}
 .zp-editor-stages>button[aria-current=step]{border-color:var(--gs-line,#33333d);background:var(--gs-panel,#19191e);color:var(--gs-accent,#caff00)}
-.zp-editor-guide{margin-left:12px;color:var(--gs-muted,#a3a3aa);font-size:12px}
+.zp-editor-guide{display:flex;flex-direction:column;flex-basis:100%;gap:5px;padding:8px 0 2px;color:var(--gs-muted,#a3a3aa);font-size:12px;line-height:1.5;min-width:0}
+.zp-editor-guide strong{font-size:16px;font-weight:600;color:var(--zc-text,#f2f2f0)}
+.zp-editor-guide span{max-width:88ch;overflow-wrap:anywhere}
 .zp-editor-viewer-host{position:absolute;inset:0;z-index:1;min-width:0;min-height:0}
 .zp-editor-viewer-host[aria-busy=true]{cursor:progress}
 .zp-editor-timeline-host{min-width:0}
@@ -85,7 +87,7 @@
 .zp-editor-tools [data-editor=job]{display:flex;align-items:center;gap:12px;padding-top:8px;border-top:1px solid var(--gs-line,#33333d)}
 .zp-editor-tools [data-editor=job] progress{flex:1;height:4px;accent-color:var(--gs-accent,#caff00)}
 .zp-page [hidden]{display:none!important}
-@media(max-width:1100px){.zp-editor-guide{display:none}.zp-editor-tools{padding:12px}.zp-editor-tool-group{order:2;flex-basis:100%;width:fit-content}.zp-editor-tools [data-tool]{flex:1}.zp-editor-tools .zp-editor-description{flex-basis:55%}}
+@media(max-width:1100px){.zp-editor-guide{display:flex}.zp-editor-tools{padding:12px}.zp-editor-tool-group{order:2;flex-basis:100%;width:fit-content}.zp-editor-tools [data-tool]{flex:1}.zp-editor-tools .zp-editor-description{flex-basis:55%}}
 @media(max-width:700px){.zp-page.zp-editor-open{grid-template-rows:auto auto minmax(250px,40vh) auto auto;overflow:auto}.zp-editor-stages>button{flex:1;padding-inline:8px;min-height:44px}.zp-editor-tools{gap:10px}.zp-editor-tools :is(button,input:not([type=range]),select){min-height:44px}.zp-editor-tools [data-tool]{flex:1 1 27%;min-height:40px}.zp-editor-tools .zp-editor-description{flex-basis:100%;align-items:flex-start;flex-direction:column}.zp-editor-description input{width:100%;box-sizing:border-box;font-size:16px!important}.zp-editor-tool-row>label:has(input[type=range]){flex-basis:40%;max-width:none}.zp-editor-mask-actions details{order:3;flex-basis:100%}.zp-editor-mask-actions details[open]>.zp-editor-tool-row{position:static;width:auto;margin-top:8px;box-shadow:none}.zp-editor-clean-actions>button{flex:1 1 45%}.zp-editor-tools [data-editor=job]{flex-wrap:wrap}.zp-editor-tools [data-editor=job] progress{flex-basis:100%}}
 
 .zp-editor-timeline__mask-anchors{position:absolute;inset:0;pointer-events:none;z-index:4}

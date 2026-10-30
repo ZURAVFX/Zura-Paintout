@@ -2,11 +2,10 @@
 export const FRAME_EDIT_MODELS = {
   model: 'flux3-image-klein-int8-convrot.safetensors',
   text: 'qwen3vl_4b_int8_convrot.safetensors',
-  upsampler: 'qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors',
   vae: 'flux2-vae.safetensors',
 };
 
-const requiredNodes = ['ZuraPaintoutFrameCrop', 'ZuraPaintoutFrameComposite', 'UNETLoader', 'CLIPLoader', 'VAELoader', 'TextGenerate', 'CLIPTextEncode', 'ReferenceMultiLatent', 'KSampler', 'VAEDecode'];
+const requiredNodes = ['ZuraPaintoutFrameCrop', 'ZuraPaintoutFrameComposite', 'UNETLoader', 'CLIPLoader', 'VAELoader', 'CLIPTextEncode', 'ReferenceMultiLatent', 'KSampler', 'VAEDecode'];
 const choices = (info, node, input) => {
   const field = info[node]?.input?.required?.[input] || info[node]?.input?.optional?.[input];
   return field?.[0] === 'COMBO' ? field[1]?.options || [] : Array.isArray(field?.[0]) ? field[0] : [];
@@ -17,7 +16,6 @@ export function frameEditAvailability(info = {}) {
   const files = {
     model: matchFile(choices(info, 'UNETLoader', 'unet_name'), FRAME_EDIT_MODELS.model),
     text: matchFile(choices(info, 'CLIPLoader', 'clip_name'), FRAME_EDIT_MODELS.text),
-    upsampler: matchFile(choices(info, 'CLIPLoader', 'clip_name'), FRAME_EDIT_MODELS.upsampler),
     vae: matchFile(choices(info, 'VAELoader', 'vae_name'), FRAME_EDIT_MODELS.vae),
   };
   const missing = requiredNodes.filter(name => !info[name]);
@@ -26,7 +24,7 @@ export function frameEditAvailability(info = {}) {
   return {ready: !missing.length, missing: [...new Set(missing)], files};
 }
 
-const expansionInstruction = 'You are the prompt upsampler for an image-editing model. The attached source crop has a translucent red selection painted over the object the user wants removed. The red paint is a UI annotation, not scene content. Identify only the selected object by its visible appearance and position, then expand the user request into one clear English editing instruction for the unmarked original image. Describe the background that should naturally fill its place, accounting for perspective, lighting, shadows and reflections. Do not mention red paint or selection annotations in your output. Do not invent people, objects or a new scene. Preserve the camera, composition and all content outside the requested edit. Output only the instruction, approximately 50 to 150 words, without Markdown or commentary.';
+const selectionInstruction = 'Image 1 is the unmarked original source crop and is the image to edit. Image 2 is the same crop with a translucent red selection marking the exact area to remove. The red overlay is an editing annotation, not real scene content. Remove the object and details covered by the selection, reconstructing the existing background naturally with matching perspective, lighting, shadows and texture. Use image 1 for the original colours and appearance. Do not copy the red overlay into the result. Keep the camera, composition and all unselected content unchanged.';
 
 export function buildFrameEditGraph(config, info) {
   const available = frameEditAvailability(info);
@@ -44,21 +42,15 @@ export function buildFrameEditGraph(config, info) {
     context: Number(config.context ?? 128), max_side: Number(config.max_side ?? 1024),
     ...(config.project ? {project: config.project, mask_revision: Number(config.mask_revision)} : {}),
   }, 'Preparing the selected frame');
-  node('frame_upsampler', 'CLIPLoader', {clip_name: files.upsampler, type: 'flux3', device: 'default'}, 'Loading local prompt expansion');
-  node('frame_caption', 'TextGenerate', {
-    clip: ref('frame_upsampler'), prompt: String(config.prompt || 'Remove the marked unwanted object and reconstruct the background.').trim(),
-    image: ref('frame_crop', 5), max_length: 768, sampling_mode: 'off',
-    thinking: false, use_default_template: true, mtp: 'off', system_prompt: expansionInstruction,
-  }, 'Describing the cleaned frame');
   node('frame_model', 'UNETLoader', {unet_name: files.model, weight_dtype: 'default'}, 'Loading FLUX 3 Image Klein');
   node('frame_text', 'CLIPLoader', {clip_name: files.text, type: 'flux3', device: 'default'}, 'Loading the frame text encoder');
   node('frame_vae', 'VAELoader', {vae_name: files.vae}, 'Loading the frame VAE');
-  node('frame_positive', 'CLIPTextEncode', {clip: ref('frame_text'), text: ref('frame_caption')}, 'Encoding the clean-frame instruction');
+  node('frame_positive', 'CLIPTextEncode', {clip: ref('frame_text'), text: selectionInstruction+'\n\nArtist instruction: '+String(config.prompt || 'Remove the selected object and reconstruct the background.').trim()}, 'Encoding the clean-frame instruction');
   node('frame_negative', 'CLIPTextEncode', {clip: ref('frame_text'), text: ''}, 'Preparing frame conditioning');
   node('frame_reference', 'ReferenceMultiLatent', {
     positive: ref('frame_positive'), negative: ref('frame_negative'), vae: ref('frame_vae'),
-    resolution: 'keep resolution', 'images.image0': ref('frame_crop'),
-  }, 'Encoding the source crop');
+    resolution: 'keep resolution', 'images.image0': ref('frame_crop'), 'images.image1': ref('frame_crop', 5),
+  }, 'Encoding the source and painted selection');
   node('frame_sample', 'KSampler', {
     model: ref('frame_model'), positive: ref('frame_reference'), negative: ref('frame_reference', 1),
     latent_image: ref('frame_reference', 2), seed, steps: 16, cfg: 1,

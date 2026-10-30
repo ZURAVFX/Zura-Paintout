@@ -91,17 +91,6 @@
       "local_weight_bytes_verified_against_upstream": false
     },
     {
-      "file": "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
-      "directory": "models/text_encoders",
-      "repository": "black-forest-labs/flux-3-image-klein-comfy",
-      "observed_revision": "feef60b0aaf63a4773ace96636ebbcf43b881312",
-      "model_card": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy",
-      "file_page": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/blob/main/text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
-      "revision_download": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/feef60b0aaf63a4773ace96636ebbcf43b881312/text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
-      "gated": "auto",
-      "local_weight_bytes_verified_against_upstream": false
-    },
-    {
       "file": "flux2-vae.safetensors",
       "directory": "models/vae",
       "repository": "black-forest-labs/flux-3-image-klein-comfy",

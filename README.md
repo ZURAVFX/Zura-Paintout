@@ -100,3 +100,5 @@ Zura Paintout develops the existing [Zura Nodes](https://github.com/ZURAVFX/Comf
 The repository presentation follows [Comfy OpenJutsu](https://github.com/Comfy-Org/comfy-openjutsu) as a format reference. Its cloud setup and MIT licence do not apply to this project.
 
 A tracked mask's **Reset frame edit** removes the correction at the current frame and restores its tracked result. The mask bar stays in place. Use the bar's × to delete the whole mask layer.
+
+After confirming Trim clip, the working timeline fits that clip to its full width and retains original source frame numbers. Clean-frame generation uses direct instruction and selection references without a separate description-model pass.

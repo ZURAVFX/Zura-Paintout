@@ -56,20 +56,25 @@ export class PaintoutTimeline{
     this.state.playhead=Math.max(0,Math.trunc(finite(this.state.playhead,0)));
     const total=this.state.totalFrames||this.state.sourceFrames||this.state.startFrame+this.state.frameCount;
     this.totalFrames=Math.max(1,Math.trunc(finite(total,this.state.startFrame+this.state.frameCount)));
-    if(!this.userZoom||this.windowSize>=this.totalFrames)this.windowSize=this.totalFrames;
+    this.domainStart=this.state.stage==='trim'?0:Math.max(0,Math.min(this.totalFrames-1,this.state.exportStart??0));
+    this.domainEnd=this.state.stage==='trim'?this.totalFrames:Math.max(this.domainStart+1,Math.min(this.totalFrames,(this.state.exportEnd??this.totalFrames-1)+1));
+    this.domainFrames=this.domainEnd-this.domainStart;
+    const domainKey=`${this.state.stage==='trim'?'trim':'clip'}:${this.domainStart}:${this.domainEnd}`;
+    if(this.domainKey!==domainKey){this.userZoom=false;this.windowStart=this.domainStart;this.domainKey=domainKey;}
+    if(!this.userZoom||this.windowSize>=this.domainFrames)this.windowSize=this.domainFrames;
     if(this.state.playhead<this.windowStart||this.state.playhead>=this.visibleEnd())this.windowStart=this.state.playhead-Math.floor(this.windowSize/2);
-    this.windowStart=Math.max(0,Math.min(this.totalFrames-this.windowSize,this.windowStart));
+    this.windowStart=Math.max(this.domainStart,Math.min(this.domainEnd-this.windowSize,this.windowStart));
     this.render();
   }
   visibleStart(){return this.windowStart;}
-  visibleEnd(){return Math.min(this.totalFrames,this.windowStart+this.windowSize);}
+  visibleEnd(){return Math.min(this.domainEnd??this.totalFrames,this.windowStart+this.windowSize);}
   position(frame){const span=Math.max(1,this.visibleEnd()-this.visibleStart()-1);return Math.max(0,Math.min(100,(frame-this.visibleStart())/span*100));}
-  seek(frame){const f=Math.max(0,Math.min(this.totalFrames-1,Math.round(frame)));this.state.playhead=f;this.range.value=String(f);this.updateReadout();this.updatePlayheadLine();this.callbacks.onSeek(f);}
+  seek(frame){const f=Math.max(this.domainStart??0,Math.min((this.domainEnd??this.totalFrames)-1,Math.round(frame)));this.state.playhead=f;this.range.value=String(f);this.updateReadout();this.updatePlayheadLine();this.callbacks.onSeek(f);}
   seekFromInput(final){const f=Number(this.range.value);this.state.playhead=f;this.updateReadout();this.updatePlayheadLine();this.callbacks.onSeek(f,{preview:!final});}
   createAtPointer(event){
     if(event.target.closest('.zp-editor-frame-card')||this.state.busy)return;
     const rect=this.cards.getBoundingClientRect();const fraction=Math.max(0,Math.min(1,(event.clientX-rect.left)/Math.max(1,rect.width)));
-    const frame=Math.max(0,Math.min(this.totalFrames-1,Math.round(this.visibleStart()+fraction*(this.visibleEnd()-this.visibleStart()-1))));
+    const frame=Math.max(this.domainStart??0,Math.min((this.domainEnd??this.totalFrames)-1,Math.round(this.visibleStart()+fraction*(this.visibleEnd()-this.visibleStart()-1))));
     this.callbacks.onCreate(frame);
   }
   trimToPointer(edge,event,commit){const rect=this.ruler.getBoundingClientRect(),fraction=Math.max(0,Math.min(1,(event.clientX-rect.left)/Math.max(1,rect.width)));this.trimTo(edge,Math.round(this.visibleStart()+fraction*(this.visibleEnd()-this.visibleStart()-1)),commit);}
@@ -82,8 +87,8 @@ export class PaintoutTimeline{
   }
   setZoom(frames){
     this.userZoom=true;
-    this.windowSize=Math.max(Math.min(32,this.totalFrames),Math.min(this.totalFrames,Math.max(12,Math.round(frames/12)*12)));
-    this.windowStart=Math.max(0,Math.min(this.totalFrames-this.windowSize,this.state.playhead-Math.floor(this.windowSize/2)));this.render();
+    this.windowSize=Math.max(Math.min(32,this.domainFrames),Math.min(this.domainFrames,Math.max(12,Math.round(frames/12)*12)));
+    this.windowStart=Math.max(this.domainStart,Math.min(this.domainEnd-this.windowSize,this.state.playhead-Math.floor(this.windowSize/2)));this.render();
   }
   onKeydown(event){
     if(event.defaultPrevented||event.target.matches('input,textarea,select,[contenteditable=true]'))return;
@@ -156,10 +161,10 @@ export class PaintoutTimeline{
     this.cards.style.height=`${82*(tallest+1)}px`;this.cleanLane.style.minHeight=`${108+82*tallest}px`;
   }
   render(){
-    this.root.style.setProperty('--zp-editor-timeline-zoom',String(this.totalFrames/Math.max(1,this.windowSize)));
-    this.zoomValue.textContent=`${Math.round(this.totalFrames/Math.max(1,this.windowSize)*100)}%`;
+    this.root.style.setProperty('--zp-editor-timeline-zoom',String((this.domainFrames||this.totalFrames)/Math.max(1,this.windowSize)));
+    this.zoomValue.textContent=`${Math.round((this.domainFrames||this.totalFrames)/Math.max(1,this.windowSize)*100)}%`;
     this.addFrame.disabled=this.state.busy;
-    this.zoomIn.disabled=this.windowSize<=Math.min(32,this.totalFrames)||this.state.busy;this.zoomOut.disabled=this.windowSize>=this.totalFrames||this.state.busy;
+    this.zoomIn.disabled=this.windowSize<=Math.min(32,this.domainFrames||this.totalFrames)||this.state.busy;this.zoomOut.disabled=this.windowSize>=(this.domainFrames||this.totalFrames)||this.state.busy;
     this.range.min=String(this.visibleStart());this.range.max=String(Math.max(this.visibleStart(),this.visibleEnd()-1));if(!this.dragging)this.range.value=String(Math.min(this.state.playhead,this.totalFrames-1));
     this.renderCards();this.renderMaskBars();this.renderTicks();this.updateReadout();this.updatePlayheadLine();
     this.title.textContent=this.state.stage==='trim'?'Trim clip':this.state.stage==='mask'?'Mask timeline':'Source timeline';

@@ -250,7 +250,7 @@ class ZuraPaintoutFrameCrop:
                      description=description, identity=source_identity(description))
         if hdr_original is not None:
             patch.update(hdr_original=hdr_original, hdr_source_space=space, edit_view='SDR shoulder view; FLUX is not a native HDR model')
-        # The captioner sees the selection; FLUX receives the unmarked reference.
+        # Return the untouched context and a separate selection annotation.
         selection = image.clone()
         coverage = crop_mask[..., None] * .45
         colour = torch.tensor([1., .05, .05], dtype=selection.dtype)

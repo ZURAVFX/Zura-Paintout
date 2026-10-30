@@ -17,7 +17,7 @@ For a first test, follow [Start here: local testing](build/local-start-here.md).
 
 ## Run the Comfy workflow
 
-**This is the recommended way to use Zura Paintout.** [Zura Paintout is now listed in Comfy Registry](https://registry.comfy.org/nodes/zura-paintout). Version 0.1.0 has been submitted and is currently marked Pending. The public Registry search is verified; availability in your Manager may take time to refresh. The current GitHub development build also contains a [post-Registry RGB video decode fix](build/CHANGES.md#post-registry-development-fixes-29-october-2026).
+**This is the recommended way to use Zura Paintout.** The [Registry listing](https://registry.comfy.org/nodes/zura-paintout) exists, but its old 0.1.0 archive is currently marked Flagged by Registry review. The public response does not provide a reason. Use the current GitHub build for the model setup panel and latest fixes; Manager installation of a reviewed Registry update is still being verified.
 
 Once the pack appears in your Manager, setup uses ComfyUI's interface throughout:
 
@@ -26,7 +26,7 @@ Once the pack appears in your Manager, setup uses ComfyUI's interface throughout
 3. Open **Workflow → Browse Templates** and choose **Zura Paintout → Zura_Paintout_Targeted**. Both native templates are included in `example_workflows/` for ComfyUI's Template Browser.
 4. Enter the plate, mask and clean-guide paths, check the source range and colour space, then queue the repair.
 
-For the current GitHub build, use Manager's **Install via Git URL** option if your version supports it, with `https://github.com/ZURAVFX/Zura-Paintout`. Do not change Manager's security settings to enable this. The manual fallback below remains available while the listing is pending.
+For the current GitHub build, use Manager's **Install via Git URL** option if your version supports it, with `https://github.com/ZURAVFX/Zura-Paintout`. Do not change Manager's security settings to enable this. The manual fallback below remains available while Registry review is unresolved.
 
 ### Manual installation and workflow inputs
 

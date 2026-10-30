@@ -1,6 +1,6 @@
 [project]
 name = "zura-paintout"
-version = "0.1.0"
+version = "0.1.1"
 description = "Precise video object removal in ComfyUI, with masks, clean-frame guides and an optional local Studio interface."
 readme = "README.md"
 license = { file = "LICENSE" }

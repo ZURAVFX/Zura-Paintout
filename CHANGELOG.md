@@ -1,3 +1,7 @@
+# 0.1.1: local setup and repair testing update
+
+Adds guided model downloads, layered clean-frame controls, mask timeline improvements and staged HDR conversion. This remains a testing release; Registry review and artist acceptance are separate gates.
+
 # 0.1.0: standalone Registry testing release
 
 Adds Registry metadata and automatic Python dependency declarations, native Template Browser entries and portable FFmpeg/ffprobe discovery without PATH changes. The workflow runs locally. API-format files are local queue exports; no cloud service is included.

@@ -4,11 +4,11 @@ Use the local ComfyUI workflow. A paid API key, Comfy credits and a separate app
 
 ## Install the extension
 
-The standalone Registry package is [`zura-paintout`](https://registry.comfy.org/nodes/zura-paintout), displayed as **Zura Paintout**, published by `zuravfx`. The public listing and search result are verified. Version 0.1.0 is currently marked Pending; the install API already returns its archive, but installation through a user's Manager has not yet been verified.
+The standalone Registry package is [`zura-paintout`](https://registry.comfy.org/nodes/zura-paintout), displayed as **Zura Paintout**, published by `zuravfx`. The public listing and search result are verified. The older 0.1.0 archive is currently marked Flagged by Registry review, and predates the model setup panel. The public API does not provide the reason. A current, reviewed Registry installation is not yet verified; use the GitHub build below meanwhile.
 
 Once available, open ComfyUI's Manager or Extensions panel, search **Zura Paintout**, choose Install and restart when prompted. Manager handles the Python dependencies. If you already use Paintout in Zura Nodes, use that installation instead of enabling both copies.
 
-While the listing is being processed, Manager's **Install via Git URL** can install `https://github.com/ZURAVFX/Zura-Paintout` where that option is available. Do not lower Manager's security settings to enable it.
+While Registry review is unresolved, Manager's **Install via Git URL** can install `https://github.com/ZURAVFX/Zura-Paintout` where that option is available. Do not lower Manager's security settings to enable it.
 
 Install **ComfyUI-LTXVideo** and **ComfyUI-KJNodes** through the same Manager interface. These supply the model guide and mask-processing nodes. Use Manager's missing-node installation when the loaded workflow reports dependencies, then restart if requested.
 

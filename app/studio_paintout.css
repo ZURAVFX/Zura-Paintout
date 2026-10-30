@@ -166,3 +166,16 @@
 }
 
 :is(#zura-paintout-app,#zura-paintout-app) .zp-page.zp-editor-open:not([data-editor-stage=render]) .zps-preview-menu .zps-view-tabs{display:grid!important}
+
+/* Colour remains editable after detection, confirmation and completed renders. */
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>summary{display:flex;align-items:center;gap:8px}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>summary svg{width:14px;height:14px}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>div{left:auto;right:0}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>div label{display:block}
+:is(#zura-paintout-app,#zura-paintout-app) #zps-check-colour>div label+label{margin-top:14px}
+
+:is(#zura-paintout-app,#zura-paintout-app) .zf-heading>.zps-new-paintout{margin-right:auto;min-height:36px;padding:8px 12px;border:1px solid var(--gs-line);border-radius:5px;background:transparent;color:var(--zc-text);font:inherit;font-size:12px;cursor:pointer}
+:is(#zura-paintout-app,#zura-paintout-app) .zf-heading>.zps-new-paintout:hover{background:var(--zc-hover)}
+:is(#zura-paintout-app,#zura-paintout-app) .zf-heading>.zps-new-paintout:focus-visible{outline:2px solid var(--gs-accent);outline-offset:2px}
+
+:is(#zura-paintout-app,#zura-paintout-app) .zp-page>.zf-heading>h2{margin-right:0}

@@ -45,7 +45,7 @@ export class PaintoutWorkspace{
 
     this.page.innerHTML=`
 
-      <div class="zf-heading"><h2>Paintout</h2><div class="zps-colour-status" id="zps-colour-status" aria-label="Input and output colour" hidden><span><strong id="zps-input-range"></strong><small id="zps-input-space"></small></span><span><strong id="zps-output-range"></strong><small id="zps-output-space"></small></span><details id="zps-check-colour" hidden><summary>Set colour</summary><div><label>Actual source colour<select id="zps-source-colour-confirm">${options(colours,this.state.sourceColour)}</select></label><p>Choose the footage's original colour space.</p></div></details></div><details class="zps-preview-menu" id="zps-preview-menu"><summary>View: <span id="zps-view-label">Source</span> ${icons.chevron}</summary><div class="zps-menu-panel"><div class="zps-view-tabs" role="group" aria-label="Paintout preview">${[['source','Source'],['mask','Mask'],['anchor','Painted frame'],['result','Result']].map(([id,label])=>`<button type="button" data-view="${id}">${label}</button>`).join('')}</div><button type="button" id="zps-compare" hidden>Compare result</button><a id="zps-download" hidden download>Download result</a></div></details><details class="zps-workspace-menu" id="zps-workspace-menu"><summary>Workspace ${icons.chevron}</summary><div class="zps-menu-panel" data-project-menu><details id="zps-history"><summary>History</summary><div id="zps-takes"></div></details><button type="button" id="zps-new" title="Begin a new paintout. Saved projects remain available.">Start a new paintout</button></div></details></div>
+      <div class="zf-heading"><h2>Paintout</h2><button type="button" id="zps-new" class="zps-new-paintout" title="Start from the beginning. Your current project is saved.">New paintout</button><div class="zps-colour-status" id="zps-colour-status" aria-label="Input and output colour" hidden><span><strong id="zps-input-range"></strong><small id="zps-input-space"></small></span><details id="zps-check-colour" hidden><summary aria-label="Change colour mode"><strong id="zps-output-range"></strong> ${icons.chevron}</summary><small id="zps-output-space"></small><div><label>Workflow<select id="zps-pipeline" aria-label="Colour pipeline"><option value="sdr_sdr">SDR &rarr; SDR</option><option value="sdr_hdr">SDR &rarr; HDR</option><option value="hdr_hdr">HDR &rarr; HDR</option></select></label><label>Source colour<select id="zps-source-colour-confirm">${options(colours,this.state.sourceColour)}</select></label></div></details></div><details class="zps-preview-menu" id="zps-preview-menu"><summary>View: <span id="zps-view-label">Source</span> ${icons.chevron}</summary><div class="zps-menu-panel"><div class="zps-view-tabs" role="group" aria-label="Paintout preview">${[['source','Source'],['mask','Mask'],['anchor','Painted frame'],['result','Result']].map(([id,label])=>`<button type="button" data-view="${id}">${label}</button>`).join('')}</div><button type="button" id="zps-compare" hidden>Compare result</button><a id="zps-download" hidden download>Download result</a></div></details><details class="zps-workspace-menu" id="zps-workspace-menu"><summary>Workspace ${icons.chevron}</summary><div class="zps-menu-panel" data-project-menu><details id="zps-history"><summary>History</summary><div id="zps-takes"></div></details></div></details></div>
 
       <div class="zf-viewer">
 
@@ -83,7 +83,7 @@ export class PaintoutWorkspace{
 
         <div class="zc-prompt-bottom"><div class="zc-prompt-tools">
 
-          <div class="zc-tool-group"><span class="zc-tool zf-model">${icons.model} LTX 2.5</span><label class="zc-tool zps-colour-pipeline">Colour<select id="zps-pipeline" aria-label="Colour pipeline"><option value="sdr_sdr">SDR → SDR</option><option value="sdr_hdr">SDR → HDR</option><option value="hdr_hdr">HDR → HDR</option></select></label></div>
+          <div class="zc-tool-group"><span class="zc-tool zf-model">${icons.model} LTX 2.5</span></div>
 
           <details class="zc-tool-popup" id="zps-resolution"><summary class="zc-tool" aria-label="Processing resolution">${icons.size}<span id="zps-resolution-label">1152 × 640</span>${icons.chevron}</summary><div class="zc-tool-panel"><strong>Processing resolution</strong><label>Size<select id="zps-size-mode">${options([['default','Default · 1152 × 640'],['source','Use source'],...PAINTOUT_SIZE_PRESETS.map(([id,label])=>[id,label]),['custom','Custom dimensions']],this.state.resolutionMode)}</select></label><label id="zps-megapixels-control">Detail<select id="zps-megapixels">${options([['0.25','0.25 MP · fastest'],['0.5','0.5 MP'],['0.75','0.75 MP'],['1','1 MP'],['2','2 MP · more memory']],String(this.state.megapixels))}</select></label><div class="zf-dimensions" id="zps-custom-size"><label>Width<input id="zps-width" type="text" inputmode="numeric" min="64" max="4096" step="64" value="1152"/></label><label>Height<input id="zps-height" type="text" inputmode="numeric" min="64" max="4096" step="64" value="640"/></label></div><p id="zps-size-help"></p><p id="zps-framing-help"></p></div></details>
 
@@ -191,17 +191,17 @@ export class PaintoutWorkspace{
 
     this.editor=new PaintoutEditor(this);
     this.modelDownloads=new PaintoutModels(this);this.$('model-setup').onclick=()=>this.openModelSetup('video');
-    this.page.querySelector('[data-project-menu]').insertBefore(this.modelDownloads.root,this.$('new'));const newSection=document.createElement('div');newSection.className='zps-workspace-new';newSection.setAttribute('role','group');newSection.setAttribute('aria-label','New paintout');newSection.append(this.$('new'));this.page.querySelector('[data-project-menu]').append(newSection);
+    this.page.querySelector('[data-project-menu]').append(this.modelDownloads.root);
     const renderPanel=this.$('render-settings').querySelector('.zc-tool-panel');
     for(const id of ['resolution','range'])renderPanel.append(this.$(id));
     this.$('new').addEventListener('click',()=>{this.$('workspace-menu').open=false;});
     this.$('workspace-menu').addEventListener('toggle',()=>{if(!this.$('workspace-menu').open)this.modelDownloads?.close();});
-    this.menuOutside=event=>{for(const id of ['workspace-menu','preview-menu']){const menu=this.$(id);if(menu.open&&!menu.contains(event.target))menu.open=false;}};
+    this.menuOutside=event=>{for(const id of ['workspace-menu','preview-menu','check-colour']){const menu=this.$(id);if(menu.open&&!menu.contains(event.target))menu.open=false;}};
     this.page.addEventListener('pointerdown',this.menuOutside);
-    for(const id of ['workspace-menu','preview-menu'])this.$(id).addEventListener('focusout',()=>setTimeout(()=>{const menu=this.$(id);if(menu.open&&!menu.contains(document.activeElement))menu.open=false;},0));
+    for(const id of ['workspace-menu','preview-menu','check-colour'])this.$(id).addEventListener('focusout',()=>setTimeout(()=>{const menu=this.$(id);if(menu.open&&!menu.contains(document.activeElement))menu.open=false;},0));
     this.$('workspace-menu').addEventListener('click',event=>{if(event.target.closest('#zps-takes button,.zp-editor-projects button,#zps-new'))this.$('workspace-menu').open=false;});
     this.$('preview-menu').addEventListener('click',event=>{if(event.target.closest('#zps-compare,#zps-download'))this.$('preview-menu').open=false;});
-    this.page.addEventListener('keydown',event=>{if(event.key!=='Escape')return;for(const id of ['workspace-menu','preview-menu']){const menu=this.$(id);if(menu.open){event.stopPropagation();menu.open=false;menu.querySelector('summary').focus();break;}}});
+    this.page.addEventListener('keydown',event=>{if(event.key!=='Escape')return;for(const id of ['workspace-menu','preview-menu','check-colour']){const menu=this.$(id);if(menu.open){event.stopPropagation();menu.open=false;menu.querySelector('summary').focus();break;}}});
 
     this.renderAnchors();this.render();
 
@@ -394,7 +394,7 @@ export class PaintoutWorkspace{
     const unconfirmed=!known;
     this.$('input-range').textContent=`Input: ${known?(hdr(known)?'HDR':'SDR'):'Unconfirmed'}`;
     this.$('input-space').textContent=manual?`${label(selected)} · manually set${detected&&detected!==selected?' · tags say '+label(detected):''}`:detected?`${label(detected)} · detected${selected&&detected!==selected?' · using '+label(selected):''}`:`${selected?'Using '+(hdr(selected)?'HDR':'SDR')+' · '+label(selected):'Colour tags not recognised'} · check source colour`;
-    this.$('check-colour').hidden=!has||!unconfirmed;
+    this.$('check-colour').hidden=!has;
     this.$('source-colour-confirm').disabled=this.busy();this.$('source-colour-confirm').value=config.sourceColour;
     this.$('colour-status').classList.toggle('is-unconfirmed',unconfirmed);
     const format=config.outputMode||'SDR video',pipeline=paintoutColourPipeline(config);

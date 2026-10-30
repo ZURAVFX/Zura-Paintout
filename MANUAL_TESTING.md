@@ -93,7 +93,7 @@ Paint a subject that leaves each frame edge. Increase Blend edge and check that 
 
 ## Compact controls
 
-- Open Workspace: saved Projects, History and Models remain usable. Start a new paintout sits in its own bottom section and keeps stored projects available.
+- Open Workspace: saved Projects, History and Models remain usable. New paintout is visible beside the title in both modes and saves the current project before returning to the opening screen.
 - Open View and switch source/mask/painted/result; return to Mask or Clean frames to restore editing tools.
 - Open Mask options: import a mask, change tracking settings or access prior mask passes. Open Frame actions: import/download a frame or remove all paint layers.
 - Check Escape, keyboard focus and dismissal after an action. Confirm errors and generation progress remain visible, and source/output SDR/HDR stays clear.
